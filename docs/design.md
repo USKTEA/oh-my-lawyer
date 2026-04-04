@@ -1,0 +1,1 @@
+/Users/suktae/.gstack/projects/USKTEA-oh-my-lawyer/suktae-main-design-20260404-192514.md

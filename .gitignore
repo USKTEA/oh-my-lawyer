@@ -1,0 +1,39 @@
+# Environment
+.env
+
+# Gradle
+.gradle/
+**/build/
+!**/src/**/build/
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+gradle-app.setting
+.gradletasknamecache
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kotlin / Java
+*.class
+
+# Logs
+*.log
+logs/
+
+# Claude Code / OMC
+.omc/
+.claude/settings.local.json
+
+# Docker volumes
+docker-data/
+.gstack/
