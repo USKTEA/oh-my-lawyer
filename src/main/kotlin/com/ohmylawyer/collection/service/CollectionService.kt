@@ -67,9 +67,9 @@ class CollectionService(
         val collector = resolveCollector(dataType)
         val progress = progressRepository.findByTaskTypeAndDataType(collector.taskType, dataType)
 
-        if (progress != null && progress.status == CollectionStatus.QUEUED) {
-            log.info("Task {} is already queued", dataType)
-            return CollectionCommandResponse(CollectionStatus.QUEUED, dataType)
+        if (progress != null && progress.status in listOf(CollectionStatus.QUEUED, CollectionStatus.RUNNING)) {
+            log.info("Task {} is already {} — skipping enqueue", dataType, progress.status)
+            return CollectionCommandResponse(progress.status, dataType)
         }
 
         if (progress != null) {
