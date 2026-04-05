@@ -99,7 +99,9 @@ abstract class AbstractCollector(
                 }.awaitAll()
             }
 
-            progress.processedCount += results.count { it }
+            progress.processedCount = withContext(Dispatchers.IO) {
+                lawDocumentRepository.countByType(dataType).toInt()
+            }
 
             progress.lastCursor = page.toString()
             progress.updatedAt = LocalDateTime.now()

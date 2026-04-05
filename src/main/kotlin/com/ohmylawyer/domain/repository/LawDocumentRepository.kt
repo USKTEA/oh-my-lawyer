@@ -8,4 +8,5 @@ import java.util.UUID
 interface LawDocumentRepository : JpaRepository<LawDocument, UUID> {
     fun findByTypeAndSourceId(type: DocumentType, sourceId: String): LawDocument?
     fun findAllByType(type: DocumentType): List<LawDocument>
+    fun countByType(type: DocumentType): Long
 }

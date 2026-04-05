@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.retry.annotation.Retryable
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
+import java.time.Duration
 
 /**
  * 법제처 국가법령정보센터 Open API HTTP client.
@@ -46,6 +47,7 @@ class LawApiClient(
             }
             .retrieve()
             .bodyToMono(String::class.java)
+            .timeout(Duration.ofSeconds(30))
             .block() ?: throw IllegalStateException("Empty response from lawSearch.do (target=$target)")
 
         log.debug("Search response (target={}, page={}): {}...", target, page, response.take(200))
