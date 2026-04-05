@@ -4,6 +4,7 @@ object TextChunker {
 
     private const val DEFAULT_MAX_CHUNK_SIZE = 2500
     private const val DEFAULT_OVERLAP_SIZE = 500
+    private const val MIN_CHUNK_SIZE = 20
 
     private val SENTENCE_END_PATTERN = Regex("""(?<=[다됨음임요죠함])\.(?:\s|$)""")
 
@@ -21,26 +22,19 @@ object TextChunker {
         var overlapBuffer = mutableListOf<String>()
 
         for (sentence in sentences) {
-            // Fallback: if a single sentence exceeds maxChunkSize, force-split it
             if (sentence.length > maxChunkSize) {
                 if (currentChunk.isNotEmpty()) {
                     chunks.add(currentChunk.toString().trim())
                     currentChunk = StringBuilder()
                     overlapBuffer = mutableListOf()
                 }
-                var start = 0
-                while (start < sentence.length) {
-                    val end = (start + maxChunkSize).coerceAtMost(sentence.length)
-                    chunks.add(sentence.substring(start, end).trim())
-                    start = (end - overlapSize).coerceAtLeast(start + 1)
-                }
+                forceSplit(sentence, maxChunkSize, overlapSize, chunks)
                 continue
             }
 
             if (currentChunk.length + sentence.length > maxChunkSize && currentChunk.isNotEmpty()) {
                 chunks.add(currentChunk.toString().trim())
 
-                // Build overlap from recent sentences
                 currentChunk = StringBuilder()
                 var overlapLen = 0
                 for (prev in overlapBuffer.reversed()) {
@@ -54,17 +48,34 @@ object TextChunker {
             currentChunk.append(sentence)
             overlapBuffer.add(sentence)
 
-            // Keep overlap buffer from growing too large
             while (overlapBuffer.sumOf { it.length } > overlapSize * 2) {
                 overlapBuffer.removeFirst()
             }
         }
 
         if (currentChunk.isNotEmpty()) {
-            chunks.add(currentChunk.toString().trim())
+            val remaining = currentChunk.toString().trim()
+            if (remaining.length >= MIN_CHUNK_SIZE) {
+                chunks.add(remaining)
+            } else if (chunks.isNotEmpty()) {
+                chunks[chunks.lastIndex] = chunks.last() + " " + remaining
+            }
         }
 
-        return chunks.filter { it.isNotBlank() }
+        return chunks.filter { it.length >= MIN_CHUNK_SIZE }
+    }
+
+    private fun forceSplit(text: String, maxChunkSize: Int, overlapSize: Int, chunks: MutableList<String>) {
+        val step = maxChunkSize - overlapSize
+        var start = 0
+        while (start < text.length) {
+            val end = (start + maxChunkSize).coerceAtMost(text.length)
+            val chunk = text.substring(start, end).trim()
+            if (chunk.length >= MIN_CHUNK_SIZE) {
+                chunks.add(chunk)
+            }
+            start += step
+        }
     }
 
     private fun splitSentences(text: String): List<String> {
@@ -77,7 +88,6 @@ object TextChunker {
             lastEnd = end
         }
 
-        // Remaining text
         if (lastEnd < text.length) {
             sentences.add(text.substring(lastEnd))
         }

@@ -117,11 +117,11 @@ class CaseParserTest {
 
     @Test
     fun `splitCaseText splits long text by sections when exceeding max size`() {
-        val text = "서론【이유】이유 내용【주문】주문"
+        val text = "서론 부분의 긴 내용이 여기에 있습니다.【이유】이유 부분의 긴 내용이 여기에 있습니다.【주문】주문 부분의 긴 내용이 여기에 있습니다."
 
-        val sections = parser.splitCaseText(text, maxChunkSize = 5)
+        val sections = parser.splitCaseText(text, maxChunkSize = 40)
 
-        assertTrue(sections.size >= 3)
+        assertTrue(sections.size >= 3, "Expected >=3 sections, got ${sections.size}: $sections")
         assertTrue(sections.any { it.contains("서론") })
         assertTrue(sections.any { it.contains("【이유】") })
         assertTrue(sections.any { it.contains("【주문】") })
