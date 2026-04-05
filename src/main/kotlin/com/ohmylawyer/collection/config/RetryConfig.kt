@@ -22,6 +22,7 @@ class RetryConfig(private val props: LawApiProperties) {
             .backOffPolicy(ExponentialBackOffPolicy().apply {
                 initialInterval = props.retryDelayMs
                 multiplier = 2.0
+                maxInterval = 10_000L
             })
             .build()
     }

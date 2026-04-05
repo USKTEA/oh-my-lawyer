@@ -131,6 +131,9 @@ abstract class AbstractCollector(
 
             log.info("[{}] Saved: {} with {} chunks", taskType, parsed.title, parsed.chunks.size)
             true
+        } catch (e: org.springframework.dao.DataIntegrityViolationException) {
+            log.debug("[{}] Duplicate item skipped: {}", taskType, id)
+            false
         } catch (e: Exception) {
             log.warn("[{}] Failed to process item {}: {}", taskType, id, e.message)
             false

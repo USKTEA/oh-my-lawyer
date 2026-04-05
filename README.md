@@ -166,14 +166,19 @@ com.ohmylawyer/
 - Domain entities, DB 스키마 (vector, tsvector, HNSW 인덱스)
 
 ### Step 2: 데이터 수집 파이프라인 — DONE
-- 법제처 Open API 연동 (5종)
-- Parser 분리 (LawApiParser 인터페이스 + 41개 테스트)
-- 코루틴 병렬 처리 (supervisorScope + Semaphore)
-- @Retryable + 커스텀 RetryPolicy (429/5xx만 재시도)
-- @Scheduled 큐 기반 수집 (최대 3개 병렬)
-- Graceful shutdown + 서버 재시작 시 자동 복구
-- REQUIRES_NEW 트랜잭션 격리
-- WebClient 30초 timeout + DB count 기반 진행률
+- 법제처 Open API 연동 (5종: 법령/판례/헌재결정/해석례/행정규칙)
+- 기능 기반 패키지 구조 (collection/{controller,service,collector,client,parser,dto,config})
+- Parser 분리 (LawApiParser 인터페이스 + 5개 구현체 + 41개 테스트)
+- CollectionService 오케스트레이션 (OCP — 새 Collector 추가 시 Service/Controller 수정 불필요)
+- CollectionStatus/DocumentType enum + ResponseDTO (타입 안전한 상태 관리)
+- @Scheduled 큐 기반 수집 — 요청(enqueue)과 처리(processQueue)를 분리, 서버 재시작에도 큐 유지
+- 코루틴 병렬 처리 (supervisorScope + Semaphore, 최대 3개 collector 동시 실행)
+- @Retryable + 커스텀 RetryPolicy (429/5xx만 재시도, maxInterval 10초)
+- REQUIRES_NEW 트랜잭션 격리 (개별 아이템 실패가 JPA 세션에 영향 없음)
+- DB unique index 기반 중복 방어 + DataIntegrityViolationException 명시적 처리
+- WebClient 30초 timeout (search + getDetail 양쪽)
+- DB count 기반 정확한 진행률 추적
+- Graceful shutdown (@PreDestroy) + 서버 재시작 시 RUNNING → QUEUED 자동 복구 (@PostConstruct)
 
 ### Step 3: 임베딩 파이프라인 — TODO
 - Gemini Embedding API 연동
