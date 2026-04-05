@@ -1,7 +1,6 @@
 package com.ohmylawyer.collection.service
 
 import com.ohmylawyer.collection.collector.AbstractCollector
-
 import com.ohmylawyer.collection.dto.CollectionCommandResponse
 import com.ohmylawyer.collection.dto.CollectionStatusResponse
 import com.ohmylawyer.domain.entity.CollectionProgress
@@ -9,9 +8,14 @@ import com.ohmylawyer.domain.entity.CollectionStatus
 import com.ohmylawyer.domain.entity.DocumentType
 import com.ohmylawyer.domain.repository.CollectionProgressRepository
 import jakarta.annotation.PostConstruct
+import jakarta.annotation.PreDestroy
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @Service
 class CollectionService(
@@ -19,6 +23,14 @@ class CollectionService(
     private val progressRepository: CollectionProgressRepository
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    private val maxConcurrentCollections = 3
+    private val runningCollections = ConcurrentHashMap.newKeySet<String>()
+    private val collectionExecutor: ExecutorService = Executors.newFixedThreadPool(maxConcurrentCollections)
+
+    private val collectorMap: Map<DocumentType, AbstractCollector> by lazy {
+        collectors.associateBy { it.dataType }
+    }
 
     @PostConstruct
     fun recoverInterruptedTasks() {
@@ -34,8 +46,21 @@ class CollectionService(
         }
     }
 
-    private val collectorMap: Map<DocumentType, AbstractCollector> by lazy {
-        collectors.associateBy { it.dataType }
+    @PreDestroy
+    fun shutdown() {
+        log.info("Shutting down collection service — {} running tasks", runningCollections.size)
+
+        collectionExecutor.shutdownNow()
+        val terminated = collectionExecutor.awaitTermination(10, TimeUnit.SECONDS)
+        log.info("Executor terminated: {}", terminated)
+
+        progressRepository.findAll()
+            .filter { it.status == CollectionStatus.RUNNING }
+            .forEach {
+                it.status = CollectionStatus.QUEUED
+                progressRepository.save(it)
+                log.info("  {} → QUEUED (graceful shutdown)", it.dataType)
+            }
     }
 
     fun enqueue(dataType: DocumentType): CollectionCommandResponse {
@@ -69,24 +94,35 @@ class CollectionService(
 
     @Scheduled(fixedDelay = 5000)
     fun processQueue() {
+        val available = maxConcurrentCollections - runningCollections.size
+        if (available <= 0) return
+
         val queued = progressRepository.findAll()
             .filter { it.status == CollectionStatus.QUEUED }
             .sortedBy { it.updatedAt }
+            .take(available)
 
-        if (queued.isEmpty()) return
+        for (next in queued) {
+            val collector = collectorMap.values.find { it.taskType == next.taskType }
+            if (collector == null) {
+                log.warn("No collector found for task type: {}", next.taskType)
+                next.status = CollectionStatus.FAILED
+                next.errorMessage = "No collector registered for ${next.taskType}"
+                progressRepository.save(next)
+                continue
+            }
 
-        val next = queued.first()
-        val collector = collectorMap.values.find { it.taskType == next.taskType }
-        if (collector == null) {
-            log.warn("No collector found for task type: {}", next.taskType)
-            next.status = CollectionStatus.FAILED
-            next.errorMessage = "No collector registered for ${next.taskType}"
-            progressRepository.save(next)
-            return
+            if (!runningCollections.add(next.taskType)) continue
+
+            log.info("Processing queued task: {} ({}/{})", next.taskType, runningCollections.size, maxConcurrentCollections)
+            collectionExecutor.execute {
+                try {
+                    collector.collect()
+                } finally {
+                    runningCollections.remove(next.taskType)
+                }
+            }
         }
-
-        log.info("Processing queued task: {}", next.taskType)
-        collector.collect()
     }
 
     fun getStatus(): List<CollectionStatusResponse> {
