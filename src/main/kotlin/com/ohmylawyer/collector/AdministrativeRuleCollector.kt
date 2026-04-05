@@ -21,7 +21,6 @@ class AdministrativeRuleCollector(
 ) : AbstractCollector(progressRepository, lawDocumentRepository, lawChunkRepository, props) {
 
     override val log = LoggerFactory.getLogger(javaClass)
-    override val taskType = "COLLECT_ADMINISTRATIVE_RULE"
     override val dataType = DocumentType.ADMINISTRATIVE_RULE
     override val parser: LawApiParser = administrativeRuleParser
 

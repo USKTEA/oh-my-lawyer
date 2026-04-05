@@ -1,5 +1,8 @@
 package com.ohmylawyer.collector
 
+import com.ohmylawyer.collector.dto.CollectionCommandResponse
+import com.ohmylawyer.collector.dto.CollectionStatusResponse
+import com.ohmylawyer.domain.entity.DocumentType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -9,37 +12,33 @@ class CollectionController(
     private val collectionService: CollectionService
 ) {
 
-    @PostMapping("/{taskType}")
-    fun collect(
-        @PathVariable taskType: String,
-        @RequestParam query: String? = null
-    ): ResponseEntity<Map<String, String>> {
-        collectionService.startCollection(resolveTaskType(taskType), query)
-        return ResponseEntity.accepted().body(mapOf("status" to "STARTED", "task" to taskType))
+    @PostMapping("/{dataType}")
+    fun collect(@PathVariable dataType: String): ResponseEntity<CollectionCommandResponse> {
+        return ResponseEntity.accepted().body(collectionService.enqueue(resolveDataType(dataType)))
     }
 
     @PostMapping("/all")
-    fun collectAll(@RequestParam query: String? = null): ResponseEntity<Map<String, String>> {
-        collectionService.startAll(query)
-        return ResponseEntity.accepted().body(mapOf("status" to "STARTED", "task" to "ALL"))
+    fun collectAll(): ResponseEntity<List<CollectionCommandResponse>> {
+        return ResponseEntity.accepted().body(collectionService.enqueueAll())
     }
 
     @GetMapping("/status")
-    fun getStatus(): ResponseEntity<List<Map<String, Any?>>> {
+    fun getStatus(): ResponseEntity<List<CollectionStatusResponse>> {
         return ResponseEntity.ok(collectionService.getStatus())
     }
 
-    @PostMapping("/reset/{taskType}")
-    fun resetProgress(@PathVariable taskType: String): ResponseEntity<Map<String, String>> {
-        collectionService.reset(resolveTaskType(taskType))
-        return ResponseEntity.ok(mapOf("status" to "RESET", "task" to taskType))
+    @PostMapping("/reset/{dataType}")
+    fun resetProgress(@PathVariable dataType: String): ResponseEntity<CollectionCommandResponse> {
+        return if (dataType == "all") {
+            ResponseEntity.ok(collectionService.resetAll().first())
+        } else {
+            ResponseEntity.ok(collectionService.reset(resolveDataType(dataType)))
+        }
     }
 
-    private fun resolveTaskType(pathVar: String): String {
-        if (pathVar == "all") return "all"
-        // Map URL-friendly names to task types: "laws" -> "COLLECT_LAW"
-        val prefix = "COLLECT_"
+    private fun resolveDataType(pathVar: String): DocumentType {
         val normalized = pathVar.uppercase().removeSuffix("S").replace("-", "_")
-        return prefix + normalized
+        return DocumentType.entries.find { it.name == normalized }
+            ?: throw IllegalArgumentException("Unknown data type: $pathVar. Available: ${DocumentType.entries.map { it.name }}")
     }
 }

@@ -21,7 +21,6 @@ class InterpretationCollector(
 ) : AbstractCollector(progressRepository, lawDocumentRepository, lawChunkRepository, props) {
 
     override val log = LoggerFactory.getLogger(javaClass)
-    override val taskType = "COLLECT_INTERPRETATION"
     override val dataType = DocumentType.INTERPRETATION
     override val parser: LawApiParser = interpretationParser
 

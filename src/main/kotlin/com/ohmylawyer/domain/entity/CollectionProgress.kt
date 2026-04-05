@@ -6,6 +6,10 @@ import org.hibernate.type.SqlTypes
 import java.time.LocalDateTime
 import java.util.UUID
 
+enum class CollectionStatus {
+    PENDING, QUEUED, RUNNING, COMPLETED, FAILED
+}
+
 @Entity
 @Table(name = "collection_progress")
 class CollectionProgress(
@@ -29,7 +33,8 @@ class CollectionProgress(
     @Column(name = "last_cursor")
     var lastCursor: String? = null,
 
-    var status: String = "PENDING",
+    @Enumerated(EnumType.STRING)
+    var status: CollectionStatus = CollectionStatus.PENDING,
 
     @Column(name = "error_message")
     var errorMessage: String? = null,

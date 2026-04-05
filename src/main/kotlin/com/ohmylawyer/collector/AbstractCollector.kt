@@ -2,6 +2,7 @@ package com.ohmylawyer.collector
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.ohmylawyer.collector.parser.LawApiParser
+import com.ohmylawyer.domain.entity.CollectionStatus
 import com.ohmylawyer.domain.entity.*
 import com.ohmylawyer.domain.repository.CollectionProgressRepository
 import com.ohmylawyer.domain.repository.LawChunkRepository
@@ -24,9 +25,10 @@ abstract class AbstractCollector(
     private val props: LawApiProperties
 ) {
     abstract val log: Logger
-    abstract val taskType: String
     abstract val dataType: DocumentType
     abstract val parser: LawApiParser
+
+    val taskType: String get() = "COLLECT_${dataType.name}"
 
     private val concurrency = 3
     private val semaphore = Semaphore(concurrency)
@@ -36,12 +38,12 @@ abstract class AbstractCollector(
 
     open fun collect(query: String? = null) {
         val progress = getOrCreateProgress()
-        if (progress.status == "COMPLETED") {
+        if (progress.status == CollectionStatus.COMPLETED) {
             log.info("[{}] Already completed. Skipping.", taskType)
             return
         }
 
-        progress.status = "RUNNING"
+        progress.status = CollectionStatus.RUNNING
         progress.startedAt = progress.startedAt ?: LocalDateTime.now()
         progress.updatedAt = LocalDateTime.now()
         progressRepository.save(progress)
@@ -52,11 +54,11 @@ abstract class AbstractCollector(
                 collectPages(query, startPage, progress)
             }
 
-            progress.status = "COMPLETED"
+            progress.status = CollectionStatus.COMPLETED
             progress.completedAt = LocalDateTime.now()
             log.info("[{}] Completed. Total processed: {}/{}", taskType, progress.processedCount, progress.totalCount)
         } catch (e: Exception) {
-            progress.status = "FAILED"
+            progress.status = CollectionStatus.FAILED
             progress.errorMessage = e.message?.take(1000)
             log.error("[{}] Failed at page {}. Processed {}/{}", taskType, progress.lastCursor, progress.processedCount, progress.totalCount, e)
         } finally {
@@ -161,7 +163,7 @@ abstract class AbstractCollector(
 
     open fun resetProgress() {
         progressRepository.findByTaskTypeAndDataType(taskType, dataType)?.let {
-            it.status = "PENDING"
+            it.status = CollectionStatus.PENDING
             it.processedCount = 0
             it.totalCount = 0
             it.lastCursor = null

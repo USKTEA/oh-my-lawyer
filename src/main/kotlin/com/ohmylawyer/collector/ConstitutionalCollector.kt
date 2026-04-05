@@ -21,7 +21,6 @@ class ConstitutionalCollector(
 ) : AbstractCollector(progressRepository, lawDocumentRepository, lawChunkRepository, props) {
 
     override val log = LoggerFactory.getLogger(javaClass)
-    override val taskType = "COLLECT_CONSTITUTIONAL"
     override val dataType = DocumentType.CONSTITUTIONAL
     override val parser: LawApiParser = constitutionalParser
 

@@ -1,13 +1,14 @@
 package com.ohmylawyer.collector
 
+import com.ohmylawyer.collector.dto.CollectionCommandResponse
+import com.ohmylawyer.collector.dto.CollectionStatusResponse
+import com.ohmylawyer.domain.entity.CollectionProgress
+import com.ohmylawyer.domain.entity.CollectionStatus
+import com.ohmylawyer.domain.entity.DocumentType
 import com.ohmylawyer.domain.repository.CollectionProgressRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
-import java.util.concurrent.Executor
-import java.util.concurrent.Executors
 
 @Service
 class CollectionService(
@@ -15,55 +16,88 @@ class CollectionService(
     private val progressRepository: CollectionProgressRepository
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-    private val executor: Executor = Executors.newSingleThreadExecutor()
 
-    private val collectorMap: Map<String, AbstractCollector> by lazy {
-        collectors.associateBy { it.taskType }
+    private val collectorMap: Map<DocumentType, AbstractCollector> by lazy {
+        collectors.associateBy { it.dataType }
     }
 
-    fun startCollection(taskType: String, query: String? = null) {
-        val collector = collectorMap[taskType]
-            ?: throw IllegalArgumentException("Unknown task type: $taskType. Available: ${collectorMap.keys}")
+    fun enqueue(dataType: DocumentType): CollectionCommandResponse {
+        val collector = resolveCollector(dataType)
+        val progress = progressRepository.findByTaskTypeAndDataType(collector.taskType, dataType)
 
-        executor.execute {
-            log.info("Starting collection: {} (query={})", taskType, query)
-            collector.collect(query)
+        if (progress != null && progress.status == CollectionStatus.QUEUED) {
+            log.info("Task {} is already queued", dataType)
+            return CollectionCommandResponse(CollectionStatus.QUEUED, dataType)
         }
-    }
 
-    fun startAll(query: String? = null) {
-        executor.execute {
-            log.info("Starting full collection (query={})", query)
-            collectors.forEach { it.collect(query) }
-            log.info("Full collection completed")
+        if (progress != null) {
+            progress.status = CollectionStatus.QUEUED
+            progressRepository.save(progress)
+        } else {
+            progressRepository.save(
+                CollectionProgress(
+                    taskType = collector.taskType,
+                    dataType = dataType,
+                    status = CollectionStatus.QUEUED
+                )
+            )
         }
+        log.info("Enqueued task: {}", dataType)
+        return CollectionCommandResponse(CollectionStatus.QUEUED, dataType)
     }
 
-    fun getStatus(): List<Map<String, Any?>> {
+    fun enqueueAll(): List<CollectionCommandResponse> {
+        return collectors.map { enqueue(it.dataType) }
+    }
+
+    @Scheduled(fixedDelay = 5000)
+    fun processQueue() {
+        val queued = progressRepository.findAll()
+            .filter { it.status == CollectionStatus.QUEUED }
+            .sortedBy { it.updatedAt }
+
+        if (queued.isEmpty()) return
+
+        val next = queued.first()
+        val collector = collectorMap.values.find { it.taskType == next.taskType }
+        if (collector == null) {
+            log.warn("No collector found for task type: {}", next.taskType)
+            next.status = CollectionStatus.FAILED
+            next.errorMessage = "No collector registered for ${next.taskType}"
+            progressRepository.save(next)
+            return
+        }
+
+        log.info("Processing queued task: {}", next.taskType)
+        collector.collect()
+    }
+
+    fun getStatus(): List<CollectionStatusResponse> {
         return progressRepository.findAll().map { p ->
-            mapOf(
-                "taskType" to p.taskType,
-                "dataType" to p.dataType.name,
-                "status" to p.status,
-                "totalCount" to p.totalCount,
-                "processedCount" to p.processedCount,
-                "lastCursor" to p.lastCursor,
-                "errorMessage" to p.errorMessage,
-                "startedAt" to p.startedAt?.toString(),
-                "completedAt" to p.completedAt?.toString()
+            CollectionStatusResponse(
+                dataType = p.dataType,
+                status = p.status,
+                totalCount = p.totalCount,
+                processedCount = p.processedCount,
+                lastCursor = p.lastCursor,
+                errorMessage = p.errorMessage,
+                startedAt = p.startedAt,
+                completedAt = p.completedAt
             )
         }
     }
 
-    fun reset(taskType: String) {
-        if (taskType == "all") {
-            collectors.forEach { it.resetProgress() }
-        } else {
-            val collector = collectorMap[taskType]
-                ?: throw IllegalArgumentException("Unknown task type: $taskType. Available: ${collectorMap.keys}")
-            collector.resetProgress()
-        }
+    fun reset(dataType: DocumentType): CollectionCommandResponse {
+        resolveCollector(dataType).resetProgress()
+        return CollectionCommandResponse(CollectionStatus.PENDING, dataType)
     }
 
-    fun availableTaskTypes(): Set<String> = collectorMap.keys
+    fun resetAll(): List<CollectionCommandResponse> {
+        return collectors.map { reset(it.dataType) }
+    }
+
+    private fun resolveCollector(dataType: DocumentType): AbstractCollector {
+        return collectorMap[dataType]
+            ?: throw IllegalArgumentException("Unknown data type: $dataType. Available: ${collectorMap.keys}")
+    }
 }
