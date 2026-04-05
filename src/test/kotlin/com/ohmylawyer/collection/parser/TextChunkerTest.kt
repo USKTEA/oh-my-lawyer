@@ -110,6 +110,30 @@ class TextChunkerTest {
     }
 
     @Test
+    fun `sentence-boundary split must have actual overlap between adjacent chunks`() {
+        // Bug: overlapBuffer가 flush 후 비워져서 sentence-boundary 경로에서
+        // 인접 chunk 간 overlap이 전혀 없음
+        val sentences = (1..30).map { "이것은 제${it}조의 내용을 설명하는 문장이다." }
+        val text = sentences.joinToString(" ")
+
+        val chunks = TextChunker.chunkWithOverlap(text, maxChunkSize = 300, overlapSize = 80)
+
+        assertTrue(chunks.size >= 3, "Need at least 3 chunks to verify overlap, got ${chunks.size}")
+
+        // 모든 인접 chunk 쌍에서 공통 문장이 있는지 확인
+        for (i in 0 until chunks.size - 1) {
+            val c1 = chunks[i]
+            val c2 = chunks[i + 1]
+            // c1에 포함된 문장 중 하나가 c2에도 포함되어야 함 (overlap)
+            val c1Sentences = sentences.filter { c1.contains(it) }
+            val c2Sentences = sentences.filter { c2.contains(it) }
+            val shared = c1Sentences.intersect(c2Sentences.toSet())
+            assertTrue(shared.isNotEmpty(),
+                "No overlap between chunk $i and ${i+1}.\n  c1 tail: '${c1.takeLast(50)}'\n  c2 head: '${c2.take(50)}'")
+        }
+    }
+
+    @Test
     fun `legal text with Korean sentence endings splits correctly`() {
         val text = """
             청구인은 다음과 같은 이유로 이 사건 헌법소원의 심판을 청구하였다.

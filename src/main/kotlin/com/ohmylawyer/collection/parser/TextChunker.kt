@@ -36,13 +36,15 @@ object TextChunker {
                 chunks.add(currentChunk.toString().trim())
 
                 currentChunk = StringBuilder()
+                val newOverlapBuffer = mutableListOf<String>()
                 var overlapLen = 0
                 for (prev in overlapBuffer.reversed()) {
                     if (overlapLen + prev.length > overlapSize) break
                     currentChunk.insert(0, prev)
+                    newOverlapBuffer.add(0, prev)
                     overlapLen += prev.length
                 }
-                overlapBuffer = mutableListOf()
+                overlapBuffer = newOverlapBuffer
             }
 
             currentChunk.append(sentence)
