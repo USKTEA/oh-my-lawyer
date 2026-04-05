@@ -3,7 +3,7 @@ package com.ohmylawyer.collection.parser
 object TextChunker {
 
     private const val DEFAULT_MAX_CHUNK_SIZE = 2500
-    private const val DEFAULT_OVERLAP_SIZE = 500
+    private const val DEFAULT_OVERLAP_SIZE = 300
     private const val MIN_CHUNK_SIZE = 20
 
     private val SENTENCE_END_PATTERN = Regex("""(?<=[다됨음임요죠함])\.(?:\s|$)""")
