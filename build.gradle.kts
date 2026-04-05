@@ -37,6 +37,11 @@ dependencies {
     // Kotlin
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+
+    // Retry
+    implementation("org.springframework.retry:spring-retry:2.0.11")
+    implementation("org.springframework:spring-aspects")
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
