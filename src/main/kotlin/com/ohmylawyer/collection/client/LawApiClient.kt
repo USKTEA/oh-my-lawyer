@@ -70,6 +70,7 @@ class LawApiClient(
             }
             .retrieve()
             .bodyToMono(String::class.java)
+            .timeout(Duration.ofSeconds(30))
             .block() ?: throw IllegalStateException("Empty response from lawService.do (target=$target, id=$id)")
 
         log.debug("Detail response (target={}, id={}): {}...", target, id, response.take(200))
