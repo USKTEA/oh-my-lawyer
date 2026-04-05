@@ -35,13 +35,17 @@ class CollectionService(
     @PostConstruct
     fun recoverInterruptedTasks() {
         val interrupted = progressRepository.findAll()
-            .filter { it.status == CollectionStatus.RUNNING }
+            .filter {
+                it.status == CollectionStatus.RUNNING ||
+                (it.status == CollectionStatus.FAILED && it.errorMessage == null)
+            }
         if (interrupted.isNotEmpty()) {
             log.info("Recovering {} interrupted tasks to QUEUED", interrupted.size)
             interrupted.forEach {
+                log.info("  {} → QUEUED (was {})", it.dataType, it.status)
                 it.status = CollectionStatus.QUEUED
+                it.errorMessage = null
                 progressRepository.save(it)
-                log.info("  {} → QUEUED (was RUNNING)", it.dataType)
             }
         }
     }
