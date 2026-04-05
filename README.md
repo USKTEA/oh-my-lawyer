@@ -53,7 +53,7 @@ PO 질문 입력 (자연어)
 
 | 데이터 | API target | 건수 | 설명 |
 |--------|------------|------|------|
-| 법령 | `eflaw` | ~166,000 | 법률, 시행령, 시행규칙 전문 |
+| 법령 | `eflaw` | ~5,500 (현행만) | 법률, 시행령, 시행규칙 전문 |
 | 판례 | `prec` | ~171,000 | 대법원, 하급심 판례 |
 | 헌재결정 | `detc` | ~37,500 | 헌법재판소 결정례 |
 | 해석례 | `expc` | ~8,600 | 법제처 법령해석례 |
@@ -80,25 +80,57 @@ PostgreSQL 저장
     ├── law_documents: 원본 문서 (제목, 전문, 메타데이터)
     ├── law_chunks: 검색 단위 (조문/판시사항/전문 등)
     │   ├── search_vector (tsvector): 키워드 검색용
-    │   └── embedding (vector 768d): 의미 검색용 ← Step 3에서 채움
+    │   └── embedding (vector 1536d): 의미 검색용 (gemini-embedding-001)
     └── citations: 문서 간 인용 관계
 ```
 
 ### Chunking 전략
 
-현재는 **조문 단위 chunking**을 초기 방향으로 채택. design.md에서 "최적 전략은 Phase 1에서 A/B 테스트 후 확정"으로 결정.
+데이터별 특성에 맞는 chunking + **겹침 분할(overlap chunking)**으로 토큰 제한 내 의미 보존.
 
-| 현재 구현 | 향후 고도화 (검색 품질 미달 시) |
-|-----------|-------------------------------|
-| 조 단위 chunk (항/호 텍스트 포함) | 짧은 조문(1~2줄) 인접 병합 |
-| 편/장/절/관 메타데이터 없음 | 상위 계층 구조 메타데이터 추가 |
-| 판례: 판시사항/판결요지 SUMMARY + 전문 HOLDING | - |
+| 데이터 | chunk_type | 분할 기준 |
+|--------|-----------|----------|
+| 법령 | `ARTICLE` | 조문 단위 (항/호 텍스트 포함) |
+| 판례 | `SUMMARY` | 판시사항 + 판결요지 |
+| 판례 | `HOLDING` | 전문 — 【섹션】헤더로 1차 분할 → TextChunker로 2차 분할 |
+| 헌재결정 | `SUMMARY` | 판시사항 + 결정요지 |
+| 헌재결정 | `HOLDING` | 전문 — TextChunker로 분할 |
+| 해석례 | `INTERPRETATION_BODY` | 질의요지/회답/이유 통합 |
+| 행정규칙 | `ARTICLE` | 조문 단위 |
 
-고도화 기준: example.md A/B 비교에서 인용 recall 80% 미달 시 chunking 전략 변경.
+**TextChunker 파라미터** (gemini-embedding-001 입력 제한 2,048 토큰 기준):
+- 최대 chunk 크기: 2,500자 (~1,825 토큰)
+- 겹침(overlap): 500자
+- 문장 경계에서 분할 (한국어 종결어미 패턴)
+- fallback: 문장 경계 없으면 강제 분할 + overlap
 
-### 이후 사용 (TODO)
+고도화 기준: 인용 recall 80% 미달 시 구조 기반 분할(structure-aware chunking)로 전환.
 
-수집된 chunks에 Gemini Embedding API로 768차원 벡터를 생성하여 `law_chunks.embedding`에 저장. 이후 사용자 질의 시 hybrid search(벡터 유사도 + 키워드 매칭)로 관련 법률 데이터를 retrieve하고, LLM이 이를 근거로 법률 의견을 생성한다.
+### 검색 시스템
+
+Gemini Embedding API(`gemini-embedding-001`, 1536d)로 임베딩 생성 후, **RRF(Reciprocal Rank Fusion)** 기반 하이브리드 검색.
+
+```
+사용자 질의
+    │
+    ▼
+Gemini Embedding (RETRIEVAL_QUERY, 1536d)
+    │
+    ▼
+┌───────────────────────────────────────┐
+│  Vector Search (pgvector, HNSW)       │ → 순위 기반 점수
+│  Keyword Search (tsvector, GIN)       │ → 순위 기반 점수
+│                                       │
+│  RRF Score = 1/(k+rank_v) + 1/(k+rank_k)  (k=60)
+└───────────────────────────────────────┘
+    │
+    ▼
+Top-K chunks → 관련 law_documents 확장 → LLM 컨텍스트
+```
+
+- 문서 인덱싱: `RETRIEVAL_DOCUMENT` task type
+- 검색 쿼리: `RETRIEVAL_QUERY` task type (비대칭 쌍)
+- RRF가 가중치 합산 대비 유리한 이유: cosine 유사도(0~1)와 ts_rank(스케일 무관)의 점수 스케일 차이를 순위 기반으로 해소
 
 ## Tech Stack
 
@@ -122,24 +154,31 @@ docker compose up -d
 ./gradlew bootRun
 ```
 
-## 수집 API
+## API
+
+### 수집
 
 ```bash
-# 전체 수집 시작
-POST /api/collect/all
+POST /api/collect/all                    # 전체 수집 시작
+POST /api/collect/{dataType}             # 개별 수집
+GET  /api/collect/status                 # 진행 상태 조회
+POST /api/collect/reset/{dataType}       # 진행 초기화
+```
 
-# 개별 수집
-POST /api/collect/laws
-POST /api/collect/cases
-POST /api/collect/constitutional
-POST /api/collect/interpretations
-POST /api/collect/administrative-rules
+### 임베딩
 
-# 진행 상태 조회
-GET /api/collect/status
+```bash
+POST /api/embedding/start/{dataType}     # 개별 임베딩 시작
+POST /api/embedding/start-all            # 전체 임베딩 시작
+GET  /api/embedding/progress             # 전체 진행률 조회
+GET  /api/embedding/progress/{dataType}  # 개별 진행률 조회
+```
 
-# 진행 초기화
-POST /api/collect/reset/{dataType}
+### 검색
+
+```bash
+GET  /api/search?query=개인정보+제3자+제공&topK=10&types=LAW,CASE
+POST /api/search                         # JSON body로 검색
 ```
 
 ## 프로젝트 구조
@@ -151,9 +190,18 @@ com.ohmylawyer/
 │   ├── service/             # 수집 오케스트레이션, 스케줄링
 │   ├── collector/           # 수집 구현체 (AbstractCollector + 5종)
 │   ├── client/              # 법제처 Open API HTTP 클라이언트
-│   ├── parser/              # JSON 응답 파서 (LawApiParser 인터페이스 + 41개 테스트)
+│   ├── parser/              # JSON 응답 파서 + TextChunker
 │   ├── dto/                 # 응답 DTO
 │   └── config/              # Retry 설정
+├── embedding/               # 임베딩 생성
+│   ├── client/              # Gemini Embedding API 클라이언트
+│   ├── service/             # 배치 임베딩 서비스
+│   └── controller/          # 임베딩 트리거 API
+├── search/                  # 하이브리드 검색
+│   ├── controller/          # 검색 API
+│   ├── service/             # 검색 서비스
+│   ├── repository/          # RRF 네이티브 쿼리
+│   └── dto/                 # 검색 요청/응답 DTO
 ├── domain/                  # 공유 도메인
 │   ├── entity/              # LawDocument, LawChunk, Citation, CollectionProgress
 │   └── repository/          # Spring Data JPA Repository
@@ -180,13 +228,18 @@ com.ohmylawyer/
 - DB count 기반 정확한 진행률 추적
 - Graceful shutdown (@PreDestroy) + 서버 재시작 시 RUNNING → QUEUED 자동 복구 (@PostConstruct)
 
-### Step 3: 임베딩 파이프라인 — TODO
-- Gemini Embedding API 연동
-- LawChunk.embedding 벡터 저장
+### Step 3: 임베딩 + 검색 인프라 — DONE
+- Gemini Embedding API 연동 (gemini-embedding-001, 1536d)
+- 배치 임베딩 서비스 (batchEmbedContents, 진행률 추적, 재시작 가능)
+- RRF 하이브리드 검색 (pgvector cosine + tsvector rank, k=60)
+- 비대칭 task type: RETRIEVAL_DOCUMENT(인덱싱) / RETRIEVAL_QUERY(검색)
+- DB 마이그레이션: vector(768) → vector(1536)
+- 법령 수집 개선: 현행만 필터, sourceId를 법령일련번호로 변경
+- TextChunker: 문장 경계 겹침 분할 (2500자, 500자 overlap)
+- 파일 로깅 (50MB rolling, 30일 보관)
 
-### Step 4: 검색 시스템 — TODO
-- Hybrid search (tsvector + pgvector)
-- Query rewriting (Gemini)
+### Step 4: Query Rewriting — TODO
+- Gemini를 이용한 업무 용어 → 법률 검색 쿼리 변환
 
 ### Step 5: LLM 통합 + 챗 UI — TODO
 - Gemini API 연동, iterative retrieval

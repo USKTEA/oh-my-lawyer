@@ -34,6 +34,10 @@ logs/
 .omc/
 .claude/settings.local.json
 
+# Project notes (private)
+example.md
+idea.md
+
 # Docker volumes
 docker-data/
 .gstack/
