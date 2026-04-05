@@ -8,6 +8,7 @@ import com.ohmylawyer.domain.entity.CollectionProgress
 import com.ohmylawyer.domain.entity.CollectionStatus
 import com.ohmylawyer.domain.entity.DocumentType
 import com.ohmylawyer.domain.repository.CollectionProgressRepository
+import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
@@ -18,6 +19,20 @@ class CollectionService(
     private val progressRepository: CollectionProgressRepository
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    @PostConstruct
+    fun recoverInterruptedTasks() {
+        val interrupted = progressRepository.findAll()
+            .filter { it.status == CollectionStatus.RUNNING }
+        if (interrupted.isNotEmpty()) {
+            log.info("Recovering {} interrupted tasks to QUEUED", interrupted.size)
+            interrupted.forEach {
+                it.status = CollectionStatus.QUEUED
+                progressRepository.save(it)
+                log.info("  {} → QUEUED (was RUNNING)", it.dataType)
+            }
+        }
+    }
 
     private val collectorMap: Map<DocumentType, AbstractCollector> by lazy {
         collectors.associateBy { it.dataType }
