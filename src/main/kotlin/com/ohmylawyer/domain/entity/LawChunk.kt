@@ -6,10 +6,6 @@ import org.hibernate.type.SqlTypes
 import java.time.LocalDateTime
 import java.util.UUID
 
-enum class ChunkType {
-    ARTICLE, SUMMARY, HOLDING, INTERPRETATION_BODY
-}
-
 @Entity
 @Table(name = "law_chunks")
 class LawChunk(
