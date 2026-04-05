@@ -6,10 +6,6 @@ import org.hibernate.type.SqlTypes
 import java.time.LocalDateTime
 import java.util.UUID
 
-enum class CollectionStatus {
-    PENDING, QUEUED, RUNNING, COMPLETED, FAILED
-}
-
 @Entity
 @Table(name = "collection_progress")
 class CollectionProgress(

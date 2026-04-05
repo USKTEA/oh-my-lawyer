@@ -7,10 +7,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
 
-enum class DocumentType {
-    LAW, CASE, CONSTITUTIONAL, INTERPRETATION, ADMINISTRATIVE_RULE
-}
-
 @Entity
 @Table(name = "law_documents")
 class LawDocument(
