@@ -31,5 +31,12 @@ class LawCollector(
         apiClient.searchLaws(query, page)
 
     override fun fetchDetail(id: String): JsonNode =
-        apiClient.getLawDetail(id)
+        apiClient.getLawDetailByMst(id)
+
+    override fun filterSearchItems(items: List<JsonNode>): List<JsonNode> {
+        return items.filter { item ->
+            val status = item.path("현행연혁코드").asText("")
+            status == "현행"
+        }
+    }
 }

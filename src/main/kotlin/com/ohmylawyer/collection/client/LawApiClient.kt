@@ -85,6 +85,26 @@ class LawApiClient(
     fun getLawDetail(lawId: String) =
         getDetail("eflaw", lawId)
 
+    @Retryable(interceptor = "lawApiRetryInterceptor")
+    fun getLawDetailByMst(mst: String): JsonNode {
+        val response = webClient.get()
+            .uri { builder ->
+                builder.path("/lawService.do")
+                    .queryParam("OC", props.oc)
+                    .queryParam("target", "eflaw")
+                    .queryParam("type", "JSON")
+                    .queryParam("MST", mst)
+                    .build()
+            }
+            .retrieve()
+            .bodyToMono(String::class.java)
+            .timeout(Duration.ofSeconds(30))
+            .block() ?: throw IllegalStateException("Empty response from lawService.do (MST=$mst)")
+
+        log.debug("Detail response (MST={}): {}...", mst, response.take(200))
+        return objectMapper.readTree(response)
+    }
+
     fun searchCases(query: String? = null, page: Int = 1, display: Int = 100, extraParams: Map<String, String> = emptyMap()) =
         search("prec", query, page, display, extraParams)
 

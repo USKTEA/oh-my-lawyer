@@ -18,7 +18,7 @@ class LawParser : LawApiParser {
     }
 
     override fun parseItemId(item: JsonNode): String? =
-        item.textOrNull("법령ID")
+        item.textOrNull("법령일련번호")
 
     override fun parseDetail(searchItem: JsonNode, detailResponse: JsonNode): ParsedDocument {
         val lawNode = detailResponse.path("법령")
@@ -36,10 +36,12 @@ class LawParser : LawApiParser {
             sourceUrl = "https://www.law.go.kr/법령/${lawName}",
             sourceId = parseItemId(searchItem) ?: "",
             metadata = mapOf(
-                "lawNameAbbr" to (basicInfo.textOrNull("법령명_약칭") ?: ""),
-                "lawType" to (basicInfo.textOrNull("법종구분") ?: ""),
-                "ministry" to (basicInfo.textOrNull("소관부처명") ?: ""),
-                "lawStatus" to (basicInfo.textOrNull("현행연혁코드") ?: "")
+                "lawId" to (searchItem.textOrNull("법령ID") ?: ""),
+                "lawSerialNo" to (searchItem.textOrNull("법령일련번호") ?: ""),
+                "lawStatus" to (searchItem.textOrNull("현행연혁코드") ?: ""),
+                "lawNameAbbr" to (basicInfo.textOrNull("법령명_약칭") ?: searchItem.textOrNull("법령약칭명") ?: ""),
+                "lawType" to (basicInfo.textOrNull("법종구분") ?: searchItem.textOrNull("법령구분명") ?: ""),
+                "ministry" to (basicInfo.textOrNull("소관부처명") ?: searchItem.textOrNull("소관부처명") ?: "")
             ).toJsonString(),
             enactedDate = basicInfo.textOrNull("시행일자")?.toLocalDate(),
             lastAmended = basicInfo.textOrNull("공포일자")?.toLocalDate(),

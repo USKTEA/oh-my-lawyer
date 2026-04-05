@@ -51,14 +51,14 @@ class LawParserTest {
     }
 
     @Test
-    fun `parseItemId extracts 법령ID`() {
-        val item = mapper.readTree("""{"법령ID": "011357", "법령명한글": "개인정보 보호법"}""")
-        assertEquals("011357", parser.parseItemId(item))
+    fun `parseItemId extracts 법령일련번호`() {
+        val item = mapper.readTree("""{"법령일련번호": "253527", "법령ID": "011357", "법령명한글": "개인정보 보호법"}""")
+        assertEquals("253527", parser.parseItemId(item))
     }
 
     @Test
     fun `parseDetail creates document with articles as chunks`() {
-        val searchItem = mapper.readTree("""{"법령ID": "011357", "법령명한글": "개인정보 보호법"}""")
+        val searchItem = mapper.readTree("""{"법령일련번호": "253527", "법령ID": "011357", "현행연혁코드": "현행", "법령명한글": "개인정보 보호법"}""")
         val detail = mapper.readTree("""
             {"법령": {
                 "기본정보": {
@@ -80,7 +80,7 @@ class LawParserTest {
 
         assertEquals(DocumentType.LAW, result.type)
         assertEquals("개인정보 보호법", result.title)
-        assertEquals("011357", result.sourceId)
+        assertEquals("253527", result.sourceId)
         assertEquals(LocalDate.of(2024, 3, 15), result.enactedDate)
         assertEquals(LocalDate.of(2023, 9, 14), result.lastAmended)
         assertEquals(2, result.chunks.size)
@@ -91,7 +91,7 @@ class LawParserTest {
 
     @Test
     fun `parseDetail handles articles with paragraphs and sub-items`() {
-        val searchItem = mapper.readTree("""{"법령ID": "011357"}""")
+        val searchItem = mapper.readTree("""{"법령일련번호": "253527", "법령ID": "011357"}""")
         val detail = mapper.readTree("""
             {"법령": {
                 "기본정보": {"법령명_한글": "테스트법"},

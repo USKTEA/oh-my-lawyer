@@ -43,7 +43,7 @@ class ConstitutionalParser : LawApiParser {
         }
 
         if (fullText.isNotBlank()) {
-            for (section in fullText.chunked(4000)) {
+            for (section in TextChunker.chunkWithOverlap(fullText)) {
                 chunks.add(ParsedChunk(section, ChunkType.HOLDING,
                     mapOf("caseNumber" to caseNumber, "sectionIndex" to chunkIndex.toString()).toJsonString(), chunkIndex++))
             }

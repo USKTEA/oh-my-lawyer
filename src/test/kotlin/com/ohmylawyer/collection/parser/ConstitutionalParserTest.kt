@@ -127,8 +127,8 @@ class ConstitutionalParserTest {
     }
 
     @Test
-    fun `parseDetail creates multiple holding chunks when full text exceeds 4000 characters`() {
-        val longText = "가".repeat(4001)
+    fun `parseDetail creates multiple holding chunks when full text exceeds max chunk size`() {
+        val longText = "가".repeat(6001)
         val searchItem = mapper.readTree("""{"헌재결정례일련번호": "222", "사건번호": "2019헌바99", "사건명": "긴전문"}""")
         val detail = mapper.readTree("""
             {"DetcService": {

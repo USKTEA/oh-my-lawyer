@@ -38,6 +38,8 @@ abstract class AbstractCollector(
     abstract fun doSearch(query: String?, page: Int): JsonNode
     abstract fun fetchDetail(id: String): JsonNode
 
+    open fun filterSearchItems(items: List<JsonNode>): List<JsonNode> = items
+
     open fun collect(query: String? = null) {
         val progress = getOrCreateProgress()
         if (progress.status == CollectionStatus.COMPLETED) {
@@ -83,8 +85,9 @@ abstract class AbstractCollector(
                 log.info("[{}] Total count: {}", taskType, totalCount)
             }
 
-            val items = parser.parseSearchItems(searchResult)
-            if (items.isEmpty()) {
+            val rawItems = parser.parseSearchItems(searchResult)
+            val items = filterSearchItems(rawItems)
+            if (items.isEmpty() && rawItems.isEmpty()) {
                 log.info("[{}] No more items at page {}", taskType, page)
                 break
             }
@@ -107,7 +110,6 @@ abstract class AbstractCollector(
             progress.updatedAt = LocalDateTime.now()
             withContext(Dispatchers.IO) { progressRepository.save(progress) }
 
-            if (progress.processedCount >= progress.totalCount) break
             page++
 
             delay(props.requestDelayMs)

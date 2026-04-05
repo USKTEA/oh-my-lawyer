@@ -69,7 +69,7 @@ class CaseParser : LawApiParser {
         )
     }
 
-    fun splitCaseText(text: String, maxChunkSize: Int = 4000): List<String> {
+    fun splitCaseText(text: String, maxChunkSize: Int = 2500): List<String> {
         if (text.length <= maxChunkSize) return listOf(text)
 
         val sectionPattern = Regex("【[^】]+】")
@@ -89,8 +89,7 @@ class CaseParser : LawApiParser {
         }
 
         return sections.flatMap { section ->
-            if (section.length <= maxChunkSize) listOf(section)
-            else section.chunked(maxChunkSize)
+            TextChunker.chunkWithOverlap(section, maxChunkSize)
         }
     }
 }
