@@ -90,4 +90,39 @@ class AdministrativeRuleParserTest {
         assertTrue(!result.chunks[0].content.contains("<br"))
         assertTrue(result.chunks[0].content.contains("첫줄\n둘째줄\n셋째줄"))
     }
+
+    @Test
+    fun `parseTotalCount returns 0 for empty response`() {
+        val json = mapper.readTree("{}")
+        assertEquals(0, parser.parseTotalCount(json))
+    }
+
+    @Test
+    fun `parseDetail handles empty article list`() {
+        val searchItem = mapper.readTree("""{"행정규칙일련번호": "789", "행정규칙명": "빈 조문 규정", "시행일자": "20250101"}""")
+        val detail = mapper.readTree("""
+            {"AdmRulService": {
+                "행정규칙기본정보": {},
+                "조문내용": []
+            }}
+        """)
+
+        val result = parser.parseDetail(searchItem, detail)
+
+        assertTrue(result.chunks.isEmpty())
+    }
+
+    @Test
+    fun `parseDetail handles missing 조문내용 key`() {
+        val searchItem = mapper.readTree("""{"행정규칙일련번호": "790", "행정규칙명": "조문없는 규정", "시행일자": "20250101"}""")
+        val detail = mapper.readTree("""
+            {"AdmRulService": {
+                "행정규칙기본정보": {}
+            }}
+        """)
+
+        val result = parser.parseDetail(searchItem, detail)
+
+        assertTrue(result.chunks.isEmpty())
+    }
 }

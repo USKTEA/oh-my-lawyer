@@ -59,4 +59,64 @@ class InterpretationParserTest {
         assertTrue(chunk.content.contains("[회답]"))
         assertTrue(chunk.content.contains("[이유]"))
     }
+
+    @Test
+    fun `parseDetail produces empty chunks when all fields are blank`() {
+        val searchItem = mapper.readTree("""{"법령해석례일련번호": "000", "안건명": "빈 해석례", "안건번호": "00-0000"}""")
+        val detail = mapper.readTree("""
+            {"ExpcService": {
+                "안건명": "빈 해석례",
+                "안건번호": "00-0000",
+                "질의요지": "",
+                "회답": "",
+                "이유": ""
+            }}
+        """)
+
+        val result = parser.parseDetail(searchItem, detail)
+
+        assertTrue(result.chunks.isEmpty())
+    }
+
+    @Test
+    fun `parseSearchItems extracts array of items`() {
+        val json = mapper.readTree("""
+            {"Expc": {"totalCnt": 2, "expc": [
+                {"법령해석례일련번호": "313107", "안건명": "퇴직급여금 지급"},
+                {"법령해석례일련번호": "313108", "안건명": "복직 관련 해석"}
+            ]}}
+        """)
+        val items = parser.parseSearchItems(json)
+        assertEquals(2, items.size)
+        assertEquals("313107", parser.parseItemId(items[0]))
+        assertEquals("313108", parser.parseItemId(items[1]))
+    }
+
+    @Test
+    fun `parseTotalCount returns 0 for empty response`() {
+        val json = mapper.readTree("{}")
+        assertEquals(0, parser.parseTotalCount(json))
+    }
+
+    @Test
+    fun `parseDetail strips br tags from question answer and reason`() {
+        val searchItem = mapper.readTree("""{"법령해석례일련번호": "444", "안건명": "HTML 테스트", "안건번호": "06-0001"}""")
+        val detail = mapper.readTree("""
+            {"ExpcService": {
+                "안건명": "HTML 테스트",
+                "안건번호": "06-0001",
+                "질의요지": "질의 첫줄<br/>질의 둘째줄",
+                "회답": "회답 내용<br>회답 둘째줄",
+                "이유": "이유 내용"
+            }}
+        """)
+
+        val result = parser.parseDetail(searchItem, detail)
+
+        assertEquals(1, result.chunks.size)
+        val content = result.chunks[0].content
+        assertTrue(!content.contains("<br"))
+        assertTrue(content.contains("질의 둘째줄"))
+        assertTrue(content.contains("회답 둘째줄"))
+    }
 }

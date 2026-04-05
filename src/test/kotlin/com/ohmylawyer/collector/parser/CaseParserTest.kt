@@ -27,6 +27,26 @@ class CaseParserTest {
     }
 
     @Test
+    fun `parseSearchItems extracts array of items`() {
+        val json = mapper.readTree("""
+            {"PrecSearch": {"totalCnt": 2, "prec": [
+                {"판례일련번호": "154389", "사건명": "테스트A"},
+                {"판례일련번호": "154390", "사건명": "테스트B"}
+            ]}}
+        """)
+        val items = parser.parseSearchItems(json)
+        assertEquals(2, items.size)
+        assertEquals("154389", parser.parseItemId(items[0]))
+        assertEquals("154390", parser.parseItemId(items[1]))
+    }
+
+    @Test
+    fun `parseTotalCount returns 0 for empty response`() {
+        val json = mapper.readTree("{}")
+        assertEquals(0, parser.parseTotalCount(json))
+    }
+
+    @Test
     fun `parseItemId extracts 판례일련번호`() {
         val item = mapper.readTree("""{"판례일련번호": "154389", "사건명": "테스트"}""")
         assertEquals("154389", parser.parseItemId(item))
