@@ -8,23 +8,34 @@ import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 @Service
 class EmbeddingService(
     private val embeddingClient: GeminiEmbeddingClient,
     private val jdbcTemplate: JdbcTemplate,
-    @Value("\${collector.embedding-batch-size:100}") private val batchSize: Int
+    @Value("\${collector.embedding-batch-size:150}") private val batchSize: Int
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-    private val running = AtomicBoolean(false)
-    private var totalProcessed = 0L
+    private val runningAsc = AtomicBoolean(false)
+    private val runningDesc = AtomicBoolean(false)
+    private val totalProcessed = AtomicLong(0)
 
     @Scheduled(fixedDelayString = "\${collector.embedding-interval-ms:3500}")
-    fun processBatch() {
-        if (!running.compareAndSet(false, true)) return
+    fun processBatchAsc() {
+        processBatch(runningAsc, "ASC")
+    }
+
+    @Scheduled(fixedDelayString = "\${collector.embedding-interval-ms:3500}", initialDelay = 1750)
+    fun processBatchDesc() {
+        processBatch(runningDesc, "DESC")
+    }
+
+    private fun processBatch(guard: AtomicBoolean, order: String) {
+        if (!guard.compareAndSet(false, true)) return
 
         try {
-            val chunks = fetchChunksWithoutEmbedding(batchSize)
+            val chunks = fetchChunksWithoutEmbedding(batchSize, order)
             if (chunks.isEmpty()) return
 
             val texts = chunks.map { it.content }
@@ -34,15 +45,15 @@ class EmbeddingService(
                 updateEmbedding(chunk.id, embedding)
             }
 
-            totalProcessed += chunks.size
-            if (totalProcessed % 500 == 0L || chunks.size < batchSize) {
+            val processed = totalProcessed.addAndGet(chunks.size.toLong())
+            if (processed % 1000 == 0L || chunks.size < batchSize) {
                 val remaining = countRemainingChunks()
-                log.info("Embedding progress: {} processed this session, {} remaining", totalProcessed, remaining)
+                log.info("Embedding progress [{}]: {} processed, {} remaining", order, processed, remaining)
             }
         } catch (e: Exception) {
-            log.error("Embedding batch failed: {}", e.message, e)
+            log.error("Embedding batch [{}] failed: {}", order, e.message, e)
         } finally {
-            running.set(false)
+            guard.set(false)
         }
     }
 
@@ -54,14 +65,14 @@ class EmbeddingService(
             totalChunks = total,
             embeddedChunks = embedded,
             remainingChunks = remaining,
-            sessionProcessed = totalProcessed,
-            isRunning = running.get()
+            sessionProcessed = totalProcessed.get(),
+            isRunning = runningAsc.get() || runningDesc.get()
         )
     }
 
-    private fun fetchChunksWithoutEmbedding(limit: Int): List<ChunkRow> {
+    private fun fetchChunksWithoutEmbedding(limit: Int, order: String): List<ChunkRow> {
         return jdbcTemplate.query(
-            "SELECT id, content FROM law_chunks WHERE embedding IS NULL ORDER BY created_at LIMIT ?",
+            "SELECT id, content FROM law_chunks WHERE embedding IS NULL ORDER BY created_at $order LIMIT ?",
             { rs, _ -> ChunkRow(UUID.fromString(rs.getString("id")), rs.getString("content")) },
             limit
         )
