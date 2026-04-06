@@ -43,5 +43,7 @@ class LawDocument(
     val createdAt: LocalDateTime = LocalDateTime.now(),
 
     @Column(name = "updated_at")
-    var updatedAt: LocalDateTime = LocalDateTime.now()
+    var updatedAt: LocalDateTime = LocalDateTime.now(),
+
+    val outdated: Boolean = false
 )

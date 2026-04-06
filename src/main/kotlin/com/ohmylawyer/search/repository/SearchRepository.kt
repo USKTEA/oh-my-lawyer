@@ -12,6 +12,9 @@ class SearchRepository(
     companion object {
         const val RRF_K = 60
         const val CANDIDATE_MULTIPLIER = 5
+        const val LEGAL_OPINION_BOOST = 1.5
+        const val LEGAL_OPINION_OUTDATED_PENALTY = 0.5
+        const val SUPREME_COURT_BOOST = 1.3
     }
 
     fun hybridSearch(
@@ -59,13 +62,18 @@ class SearchRepository(
                    c.content,
                    c.chunk_type,
                    c.metadata,
-                   r.rrf_score AS score,
+                   r.rrf_score * CASE
+                       WHEN d.type = 'LEGAL_OPINION'::document_type AND d.outdated = false THEN ?
+                       WHEN d.type = 'LEGAL_OPINION'::document_type AND d.outdated = true THEN ?
+                       WHEN c.metadata->>'courtName' IN ('대법원', '헌법재판소') THEN ?
+                       ELSE 1.0
+                   END AS score,
                    r.vector_rrf AS vector_score,
                    r.keyword_rrf AS keyword_score
             FROM rrf r
             JOIN law_chunks c ON c.id = r.chunk_id
             JOIN law_documents d ON c.document_id = d.id
-            ORDER BY r.rrf_score DESC
+            ORDER BY score DESC
             LIMIT ?
         """.trimIndent()
 
@@ -85,17 +93,20 @@ class SearchRepository(
                     metadata = rs.getString("metadata")
                 )
             },
-            vectorStr,      // vector_matches: <=> compare
-            vectorStr,      // vector_matches: ORDER BY
-            candidateLimit, // vector_matches: LIMIT
-            queryText,      // keyword_matches: plainto_tsquery
-            queryText,      // keyword_matches: WHERE
-            candidateLimit, // keyword_matches: LIMIT
-            RRF_K,          // rrf: vector_rrf
-            RRF_K,          // rrf: keyword_rrf
-            RRF_K,          // rrf: rrf_score (vector part)
-            RRF_K,          // rrf: rrf_score (keyword part)
-            topK            // final LIMIT
+            vectorStr,            // vector_matches: <=> compare
+            vectorStr,            // vector_matches: ORDER BY
+            candidateLimit,       // vector_matches: LIMIT
+            queryText,            // keyword_matches: plainto_tsquery
+            queryText,            // keyword_matches: WHERE
+            candidateLimit,       // keyword_matches: LIMIT
+            RRF_K,                // rrf: vector_rrf
+            RRF_K,                // rrf: keyword_rrf
+            RRF_K,                // rrf: rrf_score (vector part)
+            RRF_K,                // rrf: rrf_score (keyword part)
+            LEGAL_OPINION_BOOST,          // valid legal opinion boost
+            LEGAL_OPINION_OUTDATED_PENALTY, // outdated legal opinion penalty
+            SUPREME_COURT_BOOST,          // supreme court boost
+            topK                          // final LIMIT
         )
     }
 }

@@ -6,6 +6,8 @@ import com.ohmylawyer.search.dto.SearchRequest
 import com.ohmylawyer.search.dto.SearchResponse
 import com.ohmylawyer.search.dto.SearchResult
 import com.ohmylawyer.search.repository.SearchRepository
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -15,7 +17,7 @@ class SearchService(
     private val embeddingClient: GeminiEmbeddingClient,
     private val searchRepository: SearchRepository,
     private val queryRewriteService: QueryRewriteService,
-    @Value("\${search.top-k:10}") private val defaultTopK: Int
+    @param:Value("\${search.top-k:10}") private val defaultTopK: Int
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -25,14 +27,18 @@ class SearchService(
         val topK = request.topK ?: defaultTopK
         val rewrittenQueries = queryRewriteService.rewrite(request.query)
 
-        val allResults = rewrittenQueries.flatMap { query ->
-            val queryEmbedding = embeddingClient.embed(query, TaskType.RETRIEVAL_QUERY)
-            searchRepository.hybridSearch(
-                queryEmbedding = queryEmbedding,
-                queryText = query,
-                topK = topK,
-                documentTypes = request.documentTypes
-            )
+        val allResults = runBlocking {
+            rewrittenQueries.map { query ->
+                async {
+                    val queryEmbedding = embeddingClient.embed(query, TaskType.RETRIEVAL_QUERY)
+                    searchRepository.hybridSearch(
+                        queryEmbedding = queryEmbedding,
+                        queryText = query,
+                        topK = topK,
+                        documentTypes = request.documentTypes
+                    )
+                }
+            }.flatMap { it.await() }
         }
 
         val mergedResults = mergeResults(allResults, topK)
