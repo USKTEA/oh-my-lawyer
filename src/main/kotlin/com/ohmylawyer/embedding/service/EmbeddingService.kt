@@ -74,8 +74,10 @@ class EmbeddingService(
             totalProcessed.addAndGet(chunks.size.toLong())
         } catch (e: Exception) {
             if (attempt < MAX_RETRIES) {
-                log.warn("Embedding group failed (attempt {}), retrying: {}", attempt, e.message)
-                delay(1000L * attempt)
+                val is429 = e.message?.contains("429") == true
+                val backoff = if (is429) 30_000L * attempt else 1_000L * attempt
+                log.warn("Embedding group failed (attempt {}, backoff {}ms): {}", attempt, backoff, e.message?.take(100))
+                delay(backoff)
                 processGroup(chunks, attempt + 1)
             } else {
                 throw e
