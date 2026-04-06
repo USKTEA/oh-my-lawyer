@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong
 class EmbeddingService(
     private val embeddingClient: GeminiEmbeddingClient,
     private val jdbcTemplate: JdbcTemplate,
-    @Value("\${collector.embedding-batch-size:150}") private val batchSize: Int
+    @param:Value("\${collector.embedding-batch-size:150}") private val batchSize: Int
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val running = AtomicBoolean(false)
