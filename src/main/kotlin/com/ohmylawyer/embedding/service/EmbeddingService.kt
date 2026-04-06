@@ -98,7 +98,7 @@ class EmbeddingService(
 
     private fun fetchChunksWithoutEmbedding(limit: Int): List<ChunkRow> {
         return jdbcTemplate.query(
-            "SELECT id, content FROM law_chunks WHERE embedding IS NULL ORDER BY created_at LIMIT ?",
+            "SELECT id, content FROM law_chunks WHERE embedding IS NULL AND LENGTH(TRIM(content)) >= 10 ORDER BY created_at LIMIT ?",
             { rs, _ -> ChunkRow(UUID.fromString(rs.getString("id")), rs.getString("content")) },
             limit
         )
