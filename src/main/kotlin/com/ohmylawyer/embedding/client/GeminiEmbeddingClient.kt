@@ -63,8 +63,14 @@ class GeminiEmbeddingClient(
             .uri("/models/${props.embeddingModel}:batchEmbedContents")
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(body)
-            .retrieve()
-            .bodyToMono(String::class.java)
+            .exchangeToMono { clientResponse ->
+                clientResponse.bodyToMono(String::class.java).map { responseBody ->
+                    if (clientResponse.statusCode().isError) {
+                        throw IllegalStateException("Gemini API error (${clientResponse.statusCode()}): ${responseBody.take(500).replace("\n", " ")}")
+                    }
+                    responseBody
+                }
+            }
             .timeout(Duration.ofSeconds(60))
             .block() ?: throw IllegalStateException("Empty response from Gemini batch embedding API")
 

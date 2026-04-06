@@ -32,7 +32,7 @@ rag:
 
 collector:
   batch-size: 100
-  embedding-batch-size: 150
+  embedding-batch-size: 100
   embedding-interval-ms: 3500
 
 law-api:
