@@ -96,6 +96,18 @@ class CollectionService(
         return collectors.map { enqueue(it.dataType) }
     }
 
+    @Scheduled(fixedDelay = 60_000) // 1분마다 FAILED 태스크 복구
+    fun recoverFailedTasks() {
+        val failed = progressRepository.findAll()
+            .filter { it.status == CollectionStatus.FAILED && it.processedCount < it.totalCount }
+        for (task in failed) {
+            log.info("Auto-recovering FAILED task: {} (processed {}/{})", task.dataType, task.processedCount, task.totalCount)
+            task.status = CollectionStatus.QUEUED
+            task.errorMessage = null
+            progressRepository.save(task)
+        }
+    }
+
     @Scheduled(fixedDelay = 5000)
     fun processQueue() {
         val available = maxConcurrentCollections - runningCollections.size
