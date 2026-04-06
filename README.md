@@ -100,7 +100,7 @@ PostgreSQL 저장
 
 **TextChunker 파라미터** (gemini-embedding-001 입력 제한 2,048 토큰 기준):
 - 최대 chunk 크기: 2,500자 (~1,825 토큰)
-- 겹침(overlap): 500자
+- 겹침(overlap): 300자 (14% 저장 overhead)
 - 문장 경계에서 분할 (한국어 종결어미 패턴)
 - fallback: 문장 경계 없으면 강제 분할 + overlap
 
@@ -168,10 +168,8 @@ POST /api/collect/reset/{dataType}       # 진행 초기화
 ### 임베딩
 
 ```bash
-POST /api/embedding/start/{dataType}     # 개별 임베딩 시작
-POST /api/embedding/start-all            # 전체 임베딩 시작
-GET  /api/embedding/progress             # 전체 진행률 조회
-GET  /api/embedding/progress/{dataType}  # 개별 진행률 조회
+GET  /api/embedding/status               # 임베딩 진행률 조회
+# 스케줄러가 3.8초마다 자동 실행 (수동 트리거 불필요)
 ```
 
 ### 검색
@@ -194,9 +192,9 @@ com.ohmylawyer/
 │   ├── dto/                 # 응답 DTO
 │   └── config/              # Retry 설정
 ├── embedding/               # 임베딩 생성
-│   ├── client/              # Gemini Embedding API 클라이언트
-│   ├── service/             # 배치 임베딩 서비스
-│   └── controller/          # 임베딩 트리거 API
+│   ├── client/              # Gemini Embedding API 클라이언트 (동기 batchEmbedContents)
+│   ├── service/             # 스케줄러 기반 자동 임베딩 (코루틴 병렬)
+│   └── controller/          # 진행률 조회 API
 ├── search/                  # 하이브리드 검색
 │   ├── controller/          # 검색 API
 │   ├── service/             # 검색 서비스
@@ -226,17 +224,25 @@ com.ohmylawyer/
 - DB unique index 기반 중복 방어 + DataIntegrityViolationException 명시적 처리
 - WebClient 30초 timeout (search + getDetail 양쪽)
 - DB count 기반 정확한 진행률 추적
-- Graceful shutdown (@PreDestroy) + 서버 재시작 시 RUNNING → QUEUED 자동 복구 (@PostConstruct)
+- Graceful shutdown (@PreDestroy) + 서버 재시작 시 RUNNING/FAILED → QUEUED 자동 복구 (@PostConstruct)
+- FAILED 태스크 자동 재큐잉 (60초 주기, 미완료 태스크만)
+- 법령 수집: 현행만 필터 (filterSearchItems 훅), sourceId를 법령일련번호로 변경
+- getLawDetailByMst() — MST 파라미터 기반 법령 상세 조회
 
 ### Step 3: 임베딩 + 검색 인프라 — DONE
 - Gemini Embedding API 연동 (gemini-embedding-001, 1536d)
-- 배치 임베딩 서비스 (batchEmbedContents, 진행률 추적, 재시작 가능)
+- 스케줄러 기반 자동 임베딩 (3.8초 간격, 90건 × 3 코루틴 병렬)
+  - supervisorScope: 개별 그룹 실패가 다른 그룹에 영향 없음
+  - 429 rate limit 시 30초 backoff, 일반 에러 시 1초 backoff (최대 2회 재시도)
+  - batchEmbedContents 최대 100건/요청 제한 준수
 - RRF 하이브리드 검색 (pgvector cosine + tsvector rank, k=60)
 - 비대칭 task type: RETRIEVAL_DOCUMENT(인덱싱) / RETRIEVAL_QUERY(검색)
 - DB 마이그레이션: vector(768) → vector(1536)
-- 법령 수집 개선: 현행만 필터, sourceId를 법령일련번호로 변경
-- TextChunker: 문장 경계 겹침 분할 (2500자, 500자 overlap)
+- TextChunker: 문장 경계 겹침 분할 (2500자, 300자 overlap, 14% overhead)
+  - 강제 분할 fallback (문장 경계 없을 때 step 기반)
+  - MIN_CHUNK_SIZE 20자 필터
 - 파일 로깅 (50MB rolling, 30일 보관)
+- Gemini API 에러 응답 body 로깅
 
 ### Step 4: Query Rewriting — TODO
 - Gemini를 이용한 업무 용어 → 법률 검색 쿼리 변환
