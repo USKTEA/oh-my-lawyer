@@ -1,6 +1,7 @@
 package com.ohmylawyer.embedding.service
 
 import com.ohmylawyer.embedding.client.GeminiEmbeddingClient
+import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.jdbc.core.JdbcTemplate
@@ -17,27 +18,52 @@ class EmbeddingService(
     @Value("\${collector.embedding-batch-size:150}") private val batchSize: Int
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-    private val runningAsc = AtomicBoolean(false)
-    private val runningDesc = AtomicBoolean(false)
+    private val running = AtomicBoolean(false)
     private val totalProcessed = AtomicLong(0)
 
+    companion object {
+        private const val CONCURRENCY = 3
+        private const val MAX_RETRIES = 2
+    }
+
     @Scheduled(fixedDelayString = "\${collector.embedding-interval-ms:3500}")
-    fun processBatchAsc() {
-        processBatch(runningAsc, "ASC")
-    }
-
-    @Scheduled(fixedDelayString = "\${collector.embedding-interval-ms:3500}", initialDelay = 1750)
-    fun processBatchDesc() {
-        processBatch(runningDesc, "DESC")
-    }
-
-    private fun processBatch(guard: AtomicBoolean, order: String) {
-        if (!guard.compareAndSet(false, true)) return
+    fun processBatch() {
+        if (!running.compareAndSet(false, true)) return
 
         try {
-            val chunks = fetchChunksWithoutEmbedding(batchSize, order)
+            val chunks = fetchChunksWithoutEmbedding(batchSize * CONCURRENCY)
             if (chunks.isEmpty()) return
 
+            val groups = chunks.chunked(batchSize)
+
+            runBlocking(Dispatchers.IO) {
+                supervisorScope {
+                    groups.map { group ->
+                        async { processGroup(group) }
+                    }.forEach { deferred ->
+                        try {
+                            deferred.await()
+                        } catch (e: Exception) {
+                            log.error("Embedding group failed after retries: {}", e.message)
+                        }
+                    }
+                }
+            }
+
+            val processed = totalProcessed.get()
+            if (processed % 1000 == 0L) {
+                val remaining = countRemainingChunks()
+                log.info("Embedding progress: {} processed, {} remaining", processed, remaining)
+            }
+        } catch (e: Exception) {
+            log.error("Embedding batch failed: {}", e.message, e)
+        } finally {
+            running.set(false)
+        }
+    }
+
+    private suspend fun processGroup(chunks: List<ChunkRow>, attempt: Int = 1) {
+        try {
             val texts = chunks.map { it.content }
             val embeddings = embeddingClient.embedBatch(texts)
 
@@ -45,15 +71,15 @@ class EmbeddingService(
                 updateEmbedding(chunk.id, embedding)
             }
 
-            val processed = totalProcessed.addAndGet(chunks.size.toLong())
-            if (processed % 1000 == 0L || chunks.size < batchSize) {
-                val remaining = countRemainingChunks()
-                log.info("Embedding progress [{}]: {} processed, {} remaining", order, processed, remaining)
-            }
+            totalProcessed.addAndGet(chunks.size.toLong())
         } catch (e: Exception) {
-            log.error("Embedding batch [{}] failed: {}", order, e.message, e)
-        } finally {
-            guard.set(false)
+            if (attempt < MAX_RETRIES) {
+                log.warn("Embedding group failed (attempt {}), retrying: {}", attempt, e.message)
+                delay(1000L * attempt)
+                processGroup(chunks, attempt + 1)
+            } else {
+                throw e
+            }
         }
     }
 
@@ -66,13 +92,13 @@ class EmbeddingService(
             embeddedChunks = embedded,
             remainingChunks = remaining,
             sessionProcessed = totalProcessed.get(),
-            isRunning = runningAsc.get() || runningDesc.get()
+            isRunning = running.get()
         )
     }
 
-    private fun fetchChunksWithoutEmbedding(limit: Int, order: String): List<ChunkRow> {
+    private fun fetchChunksWithoutEmbedding(limit: Int): List<ChunkRow> {
         return jdbcTemplate.query(
-            "SELECT id, content FROM law_chunks WHERE embedding IS NULL ORDER BY created_at $order LIMIT ?",
+            "SELECT id, content FROM law_chunks WHERE embedding IS NULL ORDER BY created_at LIMIT ?",
             { rs, _ -> ChunkRow(UUID.fromString(rs.getString("id")), rs.getString("content")) },
             limit
         )
