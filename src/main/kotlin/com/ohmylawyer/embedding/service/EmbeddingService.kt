@@ -19,7 +19,7 @@ class EmbeddingService(
     private val running = AtomicBoolean(false)
     private var totalProcessed = 0L
 
-    @Scheduled(fixedDelay = 7_000) // 7초 간격 → ~8.6회/분, TPM 31% 사용
+    @Scheduled(fixedDelayString = "\${collector.embedding-interval-ms:3500}")
     fun processBatch() {
         if (!running.compareAndSet(false, true)) return
 

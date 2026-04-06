@@ -32,7 +32,8 @@ rag:
 
 collector:
   batch-size: 100
-  embedding-batch-size: 100
+  embedding-batch-size: 150
+  embedding-interval-ms: 3500
 
 law-api:
   base-url: http://www.law.go.kr/DRF
