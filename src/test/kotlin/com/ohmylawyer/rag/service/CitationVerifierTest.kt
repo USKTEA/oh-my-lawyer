@@ -4,7 +4,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class CitationVerifierTest {
-
     @Test
     fun `extractSearchTerms - law name with article number`() {
         val (term1, term2) = CitationVerifier.extractSearchTerms("개인정보보호법 제18조 제2항")

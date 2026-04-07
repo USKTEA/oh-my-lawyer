@@ -3,7 +3,7 @@ package com.ohmylawyer.search.dto
 data class SearchResponse(
     val query: String,
     val results: List<SearchResult>,
-    val totalCount: Int
+    val totalCount: Int,
 )
 
 data class SearchResult(
@@ -16,5 +16,5 @@ data class SearchResult(
     val score: Double,
     val vectorScore: Double,
     val keywordScore: Double,
-    val metadata: String
+    val metadata: String,
 )

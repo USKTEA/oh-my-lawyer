@@ -1,9 +1,7 @@
 package com.ohmylawyer.rag.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.ohmylawyer.domain.entity.DocumentType
 import com.ohmylawyer.llm.GeminiChatClient
-import com.ohmylawyer.rag.dto.Citation
 import com.ohmylawyer.rag.dto.RagRequest
 import com.ohmylawyer.rag.dto.RagResponse
 import com.ohmylawyer.rag.dto.RiskLevel
@@ -19,15 +17,16 @@ import org.springframework.stereotype.Service
 class RagService(
     private val chatClient: GeminiChatClient,
     private val searchService: SearchService,
-    private val citationVerifier: CitationVerifier
+    private val citationVerifier: CitationVerifier,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun ask(request: RagRequest): RagResponse {
-        return askStream(request) {}
-    }
+    fun ask(request: RagRequest): RagResponse = askStream(request) {}
 
-    fun askStream(request: RagRequest, onProgress: (String) -> Unit): RagResponse {
+    fun askStream(
+        request: RagRequest,
+        onProgress: (String) -> Unit,
+    ): RagResponse {
         log.info("RAG request: {}", request.question)
 
         val allChunks = mutableListOf<ContextChunk>()
@@ -36,9 +35,10 @@ class RagService(
 
         // initial search
         onProgress("관련 법령 및 판례를 검색하고 있습니다...")
-        val initialResults = searchService.search(
-            SearchRequest(query = request.question, documentTypes = request.documentTypes, topK = 10)
-        )
+        val initialResults =
+            searchService.search(
+                SearchRequest(query = request.question, documentTypes = request.documentTypes, topK = 10),
+            )
         allChunks.addAll(initialResults.results.map { it.toContextChunk() })
 
         // iterative retrieval (up to MAX_ITERATIONS)
@@ -47,15 +47,16 @@ class RagService(
             val context = buildContext(allChunks)
             val userMessage = buildUserMessage(request.question, context)
 
-            onProgress("법률 분석 중... (${i}/${MAX_ITERATIONS}회차)")
+            onProgress("법률 분석 중... ($i/${MAX_ITERATIONS}회차)")
             log.info("RAG iteration {}/{}, context chunks: {}", i, MAX_ITERATIONS, allChunks.size)
 
-            val rawResponse = chatClient.generate(
-                systemInstruction = SYSTEM_INSTRUCTION,
-                userMessage = userMessage,
-                model = GeminiChatClient.Model.CHAT,
-                timeoutSeconds = 120
-            )
+            val rawResponse =
+                chatClient.generate(
+                    systemInstruction = SYSTEM_INSTRUCTION,
+                    userMessage = userMessage,
+                    model = GeminiChatClient.Model.CHAT,
+                    timeoutSeconds = 120,
+                )
 
             lastResponse = parseLlmResponse(rawResponse)
 
@@ -66,15 +67,19 @@ class RagService(
             // additional search for next iteration (parallel)
             onProgress("근거 보강을 위해 추가 검색 중...")
             log.info("Additional queries requested: {}", lastResponse.additionalQueries)
-            val newChunks = runBlocking {
-                lastResponse.additionalQueries.map { query ->
-                    async {
-                        searchService.search(
-                            SearchRequest(query = query, documentTypes = request.documentTypes, topK = 5)
-                        ).results.map { it.toContextChunk() }
-                    }
-                }.flatMap { it.await() }
-            }.filter { new -> allChunks.none { it.content == new.content } }
+            val newChunks =
+                runBlocking {
+                    lastResponse.additionalQueries
+                        .map { query ->
+                            async {
+                                searchService
+                                    .search(
+                                        SearchRequest(query = query, documentTypes = request.documentTypes, topK = 5),
+                                    ).results
+                                    .map { it.toContextChunk() }
+                            }
+                        }.flatMap { it.await() }
+                }.filter { new -> allChunks.none { it.content == new.content } }
             allChunks.addAll(newChunks)
         }
 
@@ -90,53 +95,55 @@ class RagService(
             analysis = response.analysis,
             citations = verifiedCitations.filter { it.existsInDb },
             invalidCitations = verifiedCitations.filter { !it.existsInDb }.map { it.source },
-            iterations = iterations
+            iterations = iterations,
         )
     }
 
-    private fun buildUserMessage(question: String, context: String): String {
-        return """[사용자 질문]
+    private fun buildUserMessage(
+        question: String,
+        context: String,
+    ): String =
+        """[사용자 질문]
 $question
 
 [검색된 법률 자료]
 $context"""
-    }
 
-    private fun errorResponse(question: String): RagResponse {
-        return RagResponse(
+    private fun errorResponse(question: String): RagResponse =
+        RagResponse(
             question = question,
             riskLevel = RiskLevel.MEDIUM,
             analysis = "분석을 완료하지 못했습니다. 다시 시도해 주세요.",
             citations = emptyList(),
             invalidCitations = emptyList(),
-            iterations = 0
+            iterations = 0,
         )
-    }
 
-    private fun SearchResult.toContextChunk() = ContextChunk(
-        documentTitle = documentTitle,
-        documentType = documentType,
-        chunkType = chunkType,
-        content = content
-    )
+    private fun SearchResult.toContextChunk() =
+        ContextChunk(
+            documentTitle = documentTitle,
+            documentType = documentType,
+            chunkType = chunkType,
+            content = content,
+        )
 
     data class LlmResponse(
         val riskLevel: RiskLevel,
         val analysis: String,
         val citations: List<LlmCitation>,
-        val additionalQueries: List<String>
+        val additionalQueries: List<String>,
     )
 
     data class LlmCitation(
         val source: String,
-        val content: String
+        val content: String,
     )
 
     data class ContextChunk(
         val documentTitle: String,
         val documentType: String,
         val chunkType: String,
-        val content: String
+        val content: String,
     )
 
     companion object {
@@ -144,38 +151,47 @@ $context"""
         private val objectMapper = ObjectMapper()
         private val CODE_BLOCK_REGEX = Regex("""```(?:json)?\s*\n?(.*?)\n?\s*```""", RegexOption.DOT_MATCHES_ALL)
 
-        private val DOCUMENT_TYPE_LABELS = mapOf(
-            "LAW" to "법령",
-            "CASE" to "판례",
-            "CONSTITUTIONAL" to "헌재결정",
-            "INTERPRETATION" to "해석례",
-            "ADMINISTRATIVE_RULE" to "행정규칙",
-            "LEGAL_OPINION" to "사내 법률자문"
-        )
+        private val DOCUMENT_TYPE_LABELS =
+            mapOf(
+                "LAW" to "법령",
+                "CASE" to "판례",
+                "CONSTITUTIONAL" to "헌재결정",
+                "INTERPRETATION" to "해석례",
+                "ADMINISTRATIVE_RULE" to "행정규칙",
+                "LEGAL_OPINION" to "사내 법률자문",
+            )
 
         internal fun parseLlmResponse(json: String): LlmResponse {
-            val cleaned = CODE_BLOCK_REGEX.find(json)?.groupValues?.get(1)?.trim() ?: json.trim()
+            val cleaned =
+                CODE_BLOCK_REGEX
+                    .find(json)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.trim() ?: json.trim()
 
             return try {
                 val tree = objectMapper.readTree(cleaned)
 
-                val riskLevel = try {
-                    RiskLevel.valueOf(tree.path("riskLevel").asText("MEDIUM"))
-                } catch (e: IllegalArgumentException) {
-                    RiskLevel.MEDIUM
-                }
+                val riskLevel =
+                    try {
+                        RiskLevel.valueOf(tree.path("riskLevel").asText("MEDIUM"))
+                    } catch (e: IllegalArgumentException) {
+                        RiskLevel.MEDIUM
+                    }
 
                 val analysis = tree.path("analysis").asText("")
 
-                val citations = tree.path("citations").mapNotNull { node ->
-                    val source = node.path("source").asText("")
-                    val content = node.path("content").asText("")
-                    if (source.isNotBlank()) LlmCitation(source, content) else null
-                }
+                val citations =
+                    tree.path("citations").mapNotNull { node ->
+                        val source = node.path("source").asText("")
+                        val content = node.path("content").asText("")
+                        if (source.isNotBlank()) LlmCitation(source, content) else null
+                    }
 
-                val additionalQueries = tree.path("additionalQueries").mapNotNull { node ->
-                    node.asText().takeIf { it.isNotBlank() }
-                }
+                val additionalQueries =
+                    tree.path("additionalQueries").mapNotNull { node ->
+                        node.asText().takeIf { it.isNotBlank() }
+                    }
 
                 LlmResponse(riskLevel, analysis, citations, additionalQueries)
             } catch (e: Exception) {
@@ -183,17 +199,16 @@ $context"""
                     riskLevel = RiskLevel.MEDIUM,
                     analysis = "분석을 완료하지 못했습니다. 원본 응답: ${json.take(200)}",
                     citations = emptyList(),
-                    additionalQueries = emptyList()
+                    additionalQueries = emptyList(),
                 )
             }
         }
 
-        internal fun buildContext(chunks: List<ContextChunk>): String {
-            return chunks.joinToString("\n\n---\n\n") { chunk ->
+        internal fun buildContext(chunks: List<ContextChunk>): String =
+            chunks.joinToString("\n\n---\n\n") { chunk ->
                 val typeLabel = DOCUMENT_TYPE_LABELS[chunk.documentType] ?: chunk.documentType
-                "[${typeLabel}] ${chunk.documentTitle} (${chunk.chunkType})\n${chunk.content}"
+                "[$typeLabel] ${chunk.documentTitle} (${chunk.chunkType})\n${chunk.content}"
             }
-        }
 
         private const val SYSTEM_INSTRUCTION = """너는 대한민국 법률 분석 전문가이다. 아파트 서비스 회사의 PO(Product Owner)가 법적 리스크를 사전 검토할 수 있도록 돕는다.
 

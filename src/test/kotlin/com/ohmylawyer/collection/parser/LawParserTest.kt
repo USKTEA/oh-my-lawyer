@@ -6,19 +6,20 @@ import com.ohmylawyer.domain.entity.DocumentType
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class LawParserTest {
-
     private val parser = LawParser()
     private val mapper = ObjectMapper()
 
     @Test
     fun `parseTotalCount extracts total from search result`() {
-        val json = mapper.readTree("""
+        val json =
+            mapper.readTree(
+                """
             {"LawSearch": {"totalCnt": 64, "law": []}}
-        """)
+        """,
+            )
         assertEquals(64, parser.parseTotalCount(json))
     }
 
@@ -30,12 +31,15 @@ class LawParserTest {
 
     @Test
     fun `parseSearchItems extracts array of items`() {
-        val json = mapper.readTree("""
+        val json =
+            mapper.readTree(
+                """
             {"LawSearch": {"totalCnt": 2, "law": [
                 {"법령ID": "011357", "법령명한글": "개인정보 보호법"},
                 {"법령ID": "011468", "법령명한글": "개인정보 보호법 시행령"}
             ]}}
-        """)
+        """,
+            )
         val items = parser.parseSearchItems(json)
         assertEquals(2, items.size)
         assertEquals("011357", items[0].path("법령ID").asText())
@@ -43,9 +47,12 @@ class LawParserTest {
 
     @Test
     fun `parseSearchItems handles single item as object`() {
-        val json = mapper.readTree("""
+        val json =
+            mapper.readTree(
+                """
             {"LawSearch": {"totalCnt": 1, "law": {"법령ID": "011357", "법령명한글": "개인정보 보호법"}}}
-        """)
+        """,
+            )
         val items = parser.parseSearchItems(json)
         assertEquals(1, items.size)
     }
@@ -59,7 +66,9 @@ class LawParserTest {
     @Test
     fun `parseDetail creates document with articles as chunks`() {
         val searchItem = mapper.readTree("""{"법령일련번호": "253527", "법령ID": "011357", "현행연혁코드": "현행", "법령명한글": "개인정보 보호법"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"법령": {
                 "기본정보": {
                     "법령명_한글": "개인정보 보호법",
@@ -74,7 +83,8 @@ class LawParserTest {
                     {"조문번호": "2", "조문제목": "정의", "조문내용": "이 법에서 사용하는 용어의 뜻은 다음과 같다."}
                 ]}
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 
@@ -92,7 +102,9 @@ class LawParserTest {
     @Test
     fun `parseDetail handles articles with paragraphs and sub-items`() {
         val searchItem = mapper.readTree("""{"법령일련번호": "253527", "법령ID": "011357"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"법령": {
                 "기본정보": {"법령명_한글": "테스트법"},
                 "조문": {"조문단위": [
@@ -106,7 +118,8 @@ class LawParserTest {
                      ]}
                 ]}
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 
@@ -120,12 +133,15 @@ class LawParserTest {
     @Test
     fun `parseDetail handles empty article list`() {
         val searchItem = mapper.readTree("""{"법령ID": "011471"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"법령": {
                 "기본정보": {"법령명_한글": "개인정보 보호법 시행규칙"},
                 "조문": {"조문단위": []}
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 
@@ -135,9 +151,12 @@ class LawParserTest {
 
     @Test
     fun `buildArticleContent formats article correctly`() {
-        val article = mapper.readTree("""
+        val article =
+            mapper.readTree(
+                """
             {"조문번호": "18", "조문제목": "개인정보의 수집 제한", "조문내용": "개인정보처리자는 정보주체의 동의를 받아..."}
-        """)
+        """,
+            )
 
         val content = parser.buildArticleContent(article)
 

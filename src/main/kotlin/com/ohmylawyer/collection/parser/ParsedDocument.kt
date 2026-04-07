@@ -13,12 +13,12 @@ data class ParsedDocument(
     val metadata: String = "{}",
     val enactedDate: LocalDate? = null,
     val lastAmended: LocalDate? = null,
-    val chunks: List<ParsedChunk> = emptyList()
+    val chunks: List<ParsedChunk> = emptyList(),
 )
 
 data class ParsedChunk(
     val content: String,
     val chunkType: ChunkType,
     val metadata: String = "{}",
-    val chunkIndex: Int = 0
+    val chunkIndex: Int = 0,
 )

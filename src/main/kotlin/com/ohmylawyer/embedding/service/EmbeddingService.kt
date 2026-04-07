@@ -1,7 +1,11 @@
 package com.ohmylawyer.embedding.service
 
 import com.ohmylawyer.embedding.client.GeminiEmbeddingClient
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.supervisorScope
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.jdbc.core.JdbcTemplate
@@ -15,7 +19,7 @@ import java.util.concurrent.atomic.AtomicLong
 class EmbeddingService(
     private val embeddingClient: GeminiEmbeddingClient,
     private val jdbcTemplate: JdbcTemplate,
-    @param:Value("\${collector.embedding-batch-size:150}") private val batchSize: Int
+    @param:Value("\${collector.embedding-batch-size:150}") private val batchSize: Int,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val running = AtomicBoolean(false)
@@ -38,15 +42,16 @@ class EmbeddingService(
 
             runBlocking(Dispatchers.IO) {
                 supervisorScope {
-                    groups.map { group ->
-                        async { processGroup(group) }
-                    }.forEach { deferred ->
-                        try {
-                            deferred.await()
-                        } catch (e: Exception) {
-                            log.error("Embedding group failed after retries: {}", e.message)
+                    groups
+                        .map { group ->
+                            async { processGroup(group) }
+                        }.forEach { deferred ->
+                            try {
+                                deferred.await()
+                            } catch (e: Exception) {
+                                log.error("Embedding group failed after retries: {}", e.message)
+                            }
                         }
-                    }
                 }
             }
 
@@ -62,7 +67,10 @@ class EmbeddingService(
         }
     }
 
-    private suspend fun processGroup(chunks: List<ChunkRow>, attempt: Int = 1) {
+    private suspend fun processGroup(
+        chunks: List<ChunkRow>,
+        attempt: Int = 1,
+    ) {
         try {
             val texts = chunks.map { it.content }
             val embeddings = embeddingClient.embedBatch(texts)
@@ -94,48 +102,51 @@ class EmbeddingService(
             embeddedChunks = embedded,
             remainingChunks = remaining,
             sessionProcessed = totalProcessed.get(),
-            isRunning = running.get()
+            isRunning = running.get(),
         )
     }
 
-    private fun fetchChunksWithoutEmbedding(limit: Int): List<ChunkRow> {
-        return jdbcTemplate.query(
+    private fun fetchChunksWithoutEmbedding(limit: Int): List<ChunkRow> =
+        jdbcTemplate.query(
             "SELECT id, content FROM law_chunks WHERE embedding IS NULL ORDER BY created_at LIMIT ?",
             { rs, _ -> ChunkRow(UUID.fromString(rs.getString("id")), rs.getString("content")) },
-            limit
+            limit,
         )
-    }
 
-    private fun updateEmbedding(chunkId: UUID, embedding: List<Float>) {
+    private fun updateEmbedding(
+        chunkId: UUID,
+        embedding: List<Float>,
+    ) {
         val vectorStr = "[${embedding.joinToString(",")}]"
         jdbcTemplate.update(
             "UPDATE law_chunks SET embedding = ?::vector WHERE id = ?",
             vectorStr,
-            chunkId
+            chunkId,
         )
     }
 
-    private fun countRemainingChunks(): Long {
-        return jdbcTemplate.queryForObject(
+    private fun countRemainingChunks(): Long =
+        jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM law_chunks WHERE embedding IS NULL",
-            Long::class.java
+            Long::class.java,
         ) ?: 0
-    }
 
-    private fun countTotalChunks(): Long {
-        return jdbcTemplate.queryForObject(
+    private fun countTotalChunks(): Long =
+        jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM law_chunks",
-            Long::class.java
+            Long::class.java,
         ) ?: 0
-    }
 
-    private data class ChunkRow(val id: UUID, val content: String)
+    private data class ChunkRow(
+        val id: UUID,
+        val content: String,
+    )
 
     data class EmbeddingStatus(
         val totalChunks: Long,
         val embeddedChunks: Long,
         val remainingChunks: Long,
         val sessionProcessed: Long,
-        val isRunning: Boolean
+        val isRunning: Boolean,
     )
 }

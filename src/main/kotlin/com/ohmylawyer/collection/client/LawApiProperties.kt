@@ -9,5 +9,5 @@ data class LawApiProperties(
     val requestDelayMs: Long = 100,
     val maxDisplay: Int = 100,
     val maxRetries: Int = 3,
-    val retryDelayMs: Long = 5000
+    val retryDelayMs: Long = 5000,
 )

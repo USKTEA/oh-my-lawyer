@@ -6,9 +6,15 @@ import java.time.format.DateTimeFormatter
 
 interface LawApiParser {
     fun parseTotalCount(searchResult: JsonNode): Int
+
     fun parseSearchItems(searchResult: JsonNode): List<JsonNode>
+
     fun parseItemId(item: JsonNode): String?
-    fun parseDetail(searchItem: JsonNode, detailResponse: JsonNode): ParsedDocument
+
+    fun parseDetail(
+        searchItem: JsonNode,
+        detailResponse: JsonNode,
+    ): ParsedDocument
 }
 
 // -- Shared extension helpers --
@@ -22,13 +28,12 @@ fun JsonNode.textOrNull(field: String): String? {
 
 private val DATE_FORMAT_8 = DateTimeFormatter.ofPattern("yyyyMMdd")
 
-fun String.toLocalDate(): LocalDate? {
-    return try {
+fun String.toLocalDate(): LocalDate? =
+    try {
         LocalDate.parse(this.take(8), DATE_FORMAT_8)
     } catch (_: Exception) {
         null
     }
-}
 
 fun String.stripHtmlBr(): String = this.replace(Regex("<br\\s*/?>"), "\n")
 

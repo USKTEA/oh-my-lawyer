@@ -8,7 +8,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ConstitutionalParserTest {
-
     private val parser = ConstitutionalParser()
     private val mapper = ObjectMapper()
 
@@ -20,9 +19,12 @@ class ConstitutionalParserTest {
 
     @Test
     fun `parseSearchItems extracts Detc items`() {
-        val json = mapper.readTree("""
+        val json =
+            mapper.readTree(
+                """
             {"DetcSearch": {"totalCnt": 1, "Detc": {"헌재결정례일련번호": "57476", "사건번호": "2017헌바323", "사건명": "테스트"}}}
-        """)
+        """,
+            )
         val items = parser.parseSearchItems(json)
         assertEquals(1, items.size)
         assertEquals("57476", parser.parseItemId(items[0]))
@@ -31,7 +33,9 @@ class ConstitutionalParserTest {
     @Test
     fun `parseDetail creates document with summary and holding chunks`() {
         val searchItem = mapper.readTree("""{"헌재결정례일련번호": "57476", "사건번호": "2017헌바323", "사건명": "위헌소원"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"DetcService": {
                 "사건명": "위헌소원",
                 "사건번호": "2017헌바323",
@@ -44,7 +48,8 @@ class ConstitutionalParserTest {
                 "참조판례": "",
                 "심판대상조문": "형사소송법 제199조"
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 
@@ -66,7 +71,9 @@ class ConstitutionalParserTest {
     @Test
     fun `parseDetail handles empty holding and summary with only full text`() {
         val searchItem = mapper.readTree("""{"헌재결정례일련번호": "999", "사건번호": "2021헌바100", "사건명": "위헌확인"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"DetcService": {
                 "사건명": "위헌확인",
                 "사건번호": "2021헌바100",
@@ -74,7 +81,8 @@ class ConstitutionalParserTest {
                 "결정요지": "",
                 "전문": "전문만 있는 헌재 결정 내용"
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 
@@ -87,12 +95,15 @@ class ConstitutionalParserTest {
 
     @Test
     fun `parseSearchItems extracts array of items`() {
-        val json = mapper.readTree("""
+        val json =
+            mapper.readTree(
+                """
             {"DetcSearch": {"totalCnt": 2, "Detc": [
                 {"헌재결정례일련번호": "57476", "사건번호": "2017헌바323", "사건명": "위헌소원"},
                 {"헌재결정례일련번호": "57477", "사건번호": "2018헌바100", "사건명": "헌법소원"}
             ]}}
-        """)
+        """,
+            )
         val items = parser.parseSearchItems(json)
         assertEquals(2, items.size)
         assertEquals("57476", parser.parseItemId(items[0]))
@@ -108,7 +119,9 @@ class ConstitutionalParserTest {
     @Test
     fun `parseDetail strips br tags from holding and summary`() {
         val searchItem = mapper.readTree("""{"헌재결정례일련번호": "111", "사건번호": "2020헌바1", "사건명": "HTML테스트"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"DetcService": {
                 "사건명": "HTML테스트",
                 "사건번호": "2020헌바1",
@@ -116,7 +129,8 @@ class ConstitutionalParserTest {
                 "결정요지": "결정요지 첫줄<br>결정요지 둘째줄",
                 "전문": "전문 내용"
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 
@@ -130,7 +144,9 @@ class ConstitutionalParserTest {
     fun `parseDetail creates multiple holding chunks when full text exceeds max chunk size`() {
         val longText = "가".repeat(6001)
         val searchItem = mapper.readTree("""{"헌재결정례일련번호": "222", "사건번호": "2019헌바99", "사건명": "긴전문"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"DetcService": {
                 "사건명": "긴전문",
                 "사건번호": "2019헌바99",
@@ -138,7 +154,8 @@ class ConstitutionalParserTest {
                 "결정요지": "",
                 "전문": "$longText"
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 

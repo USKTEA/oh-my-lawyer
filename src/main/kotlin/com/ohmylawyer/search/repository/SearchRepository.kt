@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository
 
 @Repository
 class SearchRepository(
-    private val jdbcTemplate: JdbcTemplate
+    private val jdbcTemplate: JdbcTemplate,
 ) {
     companion object {
         const val RRF_K = 60
@@ -21,15 +21,19 @@ class SearchRepository(
         queryEmbedding: List<Float>,
         queryText: String,
         topK: Int,
-        documentTypes: List<DocumentType>?
+        documentTypes: List<DocumentType>?,
     ): List<SearchResult> {
         val vectorStr = "[${queryEmbedding.joinToString(",")}]"
         val candidateLimit = topK * CANDIDATE_MULTIPLIER
-        val typeFilter = if (!documentTypes.isNullOrEmpty()) {
-            "AND d.type IN (${documentTypes.joinToString(",") { "'${it.name}'::document_type" }})"
-        } else ""
+        val typeFilter =
+            if (!documentTypes.isNullOrEmpty()) {
+                "AND d.type IN (${documentTypes.joinToString(",") { "'${it.name}'::document_type" }})"
+            } else {
+                ""
+            }
 
-        val sql = """
+        val sql =
+            """
             WITH vector_matches AS (
                 SELECT c.id AS chunk_id,
                        ROW_NUMBER() OVER (ORDER BY c.embedding <=> ?::vector) AS rank
@@ -75,7 +79,7 @@ class SearchRepository(
             JOIN law_documents d ON c.document_id = d.id
             ORDER BY score DESC
             LIMIT ?
-        """.trimIndent()
+            """.trimIndent()
 
         return jdbcTemplate.query(
             sql,
@@ -90,23 +94,23 @@ class SearchRepository(
                     score = rs.getDouble("score"),
                     vectorScore = rs.getDouble("vector_score"),
                     keywordScore = rs.getDouble("keyword_score"),
-                    metadata = rs.getString("metadata")
+                    metadata = rs.getString("metadata"),
                 )
             },
-            vectorStr,            // vector_matches: <=> compare
-            vectorStr,            // vector_matches: ORDER BY
-            candidateLimit,       // vector_matches: LIMIT
-            queryText,            // keyword_matches: plainto_tsquery
-            queryText,            // keyword_matches: WHERE
-            candidateLimit,       // keyword_matches: LIMIT
-            RRF_K,                // rrf: vector_rrf
-            RRF_K,                // rrf: keyword_rrf
-            RRF_K,                // rrf: rrf_score (vector part)
-            RRF_K,                // rrf: rrf_score (keyword part)
-            LEGAL_OPINION_BOOST,          // valid legal opinion boost
+            vectorStr, // vector_matches: <=> compare
+            vectorStr, // vector_matches: ORDER BY
+            candidateLimit, // vector_matches: LIMIT
+            queryText, // keyword_matches: plainto_tsquery
+            queryText, // keyword_matches: WHERE
+            candidateLimit, // keyword_matches: LIMIT
+            RRF_K, // rrf: vector_rrf
+            RRF_K, // rrf: keyword_rrf
+            RRF_K, // rrf: rrf_score (vector part)
+            RRF_K, // rrf: rrf_score (keyword part)
+            LEGAL_OPINION_BOOST, // valid legal opinion boost
             LEGAL_OPINION_OUTDATED_PENALTY, // outdated legal opinion penalty
-            SUPREME_COURT_BOOST,          // supreme court boost
-            topK                          // final LIMIT
+            SUPREME_COURT_BOOST, // supreme court boost
+            topK, // final LIMIT
         )
     }
 }

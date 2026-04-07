@@ -1,7 +1,6 @@
 package com.ohmylawyer.collection.parser
 
 object TextChunker {
-
     private const val DEFAULT_MAX_CHUNK_SIZE = 2500
     private const val DEFAULT_OVERLAP_SIZE = 300
     private const val MIN_CHUNK_SIZE = 20
@@ -11,7 +10,7 @@ object TextChunker {
     fun chunkWithOverlap(
         text: String,
         maxChunkSize: Int = DEFAULT_MAX_CHUNK_SIZE,
-        overlapSize: Int = DEFAULT_OVERLAP_SIZE
+        overlapSize: Int = DEFAULT_OVERLAP_SIZE,
     ): List<String> {
         if (text.isBlank()) return emptyList()
         if (text.length <= maxChunkSize) return listOf(text)
@@ -67,7 +66,12 @@ object TextChunker {
         return chunks.filter { it.length >= MIN_CHUNK_SIZE }
     }
 
-    private fun forceSplit(text: String, maxChunkSize: Int, overlapSize: Int, chunks: MutableList<String>) {
+    private fun forceSplit(
+        text: String,
+        maxChunkSize: Int,
+        overlapSize: Int,
+        chunks: MutableList<String>,
+    ) {
         val step = maxChunkSize - overlapSize
         var start = 0
         while (start < text.length) {

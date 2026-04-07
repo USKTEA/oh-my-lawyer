@@ -6,5 +6,6 @@ import java.util.UUID
 
 interface LawChunkRepository : JpaRepository<LawChunk, UUID> {
     fun findAllByDocumentId(documentId: UUID): List<LawChunk>
+
     fun deleteAllByDocumentId(documentId: UUID)
 }

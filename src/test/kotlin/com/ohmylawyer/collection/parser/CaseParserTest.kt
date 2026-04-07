@@ -8,7 +8,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class CaseParserTest {
-
     private val parser = CaseParser()
     private val mapper = ObjectMapper()
 
@@ -20,20 +19,26 @@ class CaseParserTest {
 
     @Test
     fun `parseSearchItems handles single item as object`() {
-        val json = mapper.readTree("""
+        val json =
+            mapper.readTree(
+                """
             {"PrecSearch": {"totalCnt": 1, "prec": {"판례일련번호": "154389", "사건명": "테스트"}}}
-        """)
+        """,
+            )
         assertEquals(1, parser.parseSearchItems(json).size)
     }
 
     @Test
     fun `parseSearchItems extracts array of items`() {
-        val json = mapper.readTree("""
+        val json =
+            mapper.readTree(
+                """
             {"PrecSearch": {"totalCnt": 2, "prec": [
                 {"판례일련번호": "154389", "사건명": "테스트A"},
                 {"판례일련번호": "154390", "사건명": "테스트B"}
             ]}}
-        """)
+        """,
+            )
         val items = parser.parseSearchItems(json)
         assertEquals(2, items.size)
         assertEquals("154389", parser.parseItemId(items[0]))
@@ -55,7 +60,9 @@ class CaseParserTest {
     @Test
     fun `parseDetail creates document with summary and holding chunks`() {
         val searchItem = mapper.readTree("""{"판례일련번호": "154389", "사건명": "정보통신망위반", "사건번호": "2011도1960"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"PrecService": {
                 "사건명": "정보통신망위반",
                 "사건번호": "2011도1960",
@@ -69,7 +76,8 @@ class CaseParserTest {
                 "참조판례": "",
                 "판례내용": "전문 내용입니다<br/>줄바꿈 포함"
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 
@@ -96,7 +104,9 @@ class CaseParserTest {
     @Test
     fun `parseDetail handles empty holding and summary`() {
         val searchItem = mapper.readTree("""{"판례일련번호": "999", "사건번호": "2020도123"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"PrecService": {
                 "사건명": "테스트",
                 "사건번호": "2020도123",
@@ -105,7 +115,8 @@ class CaseParserTest {
                 "판결요지": "",
                 "판례내용": "전문만 있는 판례"
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 

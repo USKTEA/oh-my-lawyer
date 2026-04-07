@@ -1,17 +1,22 @@
 package com.ohmylawyer.collection.collector
 
-import com.ohmylawyer.collection.client.LawApiClient
-import com.ohmylawyer.collection.client.LawApiProperties
-
 import com.fasterxml.jackson.databind.JsonNode
+import com.ohmylawyer.collection.client.LawApiProperties
 import com.ohmylawyer.collection.parser.LawApiParser
+import com.ohmylawyer.domain.entity.CollectionProgress
 import com.ohmylawyer.domain.entity.CollectionStatus
-import com.ohmylawyer.domain.entity.*
+import com.ohmylawyer.domain.entity.DocumentType
 import com.ohmylawyer.domain.repository.CollectionProgressRepository
 import com.ohmylawyer.domain.repository.LawDocumentRepository
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.slf4j.Logger
 import java.time.LocalDateTime
 
@@ -24,7 +29,7 @@ abstract class AbstractCollector(
     private val progressRepository: CollectionProgressRepository,
     private val lawDocumentRepository: LawDocumentRepository,
     private val documentPersistenceService: com.ohmylawyer.collection.service.DocumentPersistenceService,
-    private val props: LawApiProperties
+    private val props: LawApiProperties,
 ) {
     abstract val log: Logger
     abstract val dataType: DocumentType
@@ -35,7 +40,11 @@ abstract class AbstractCollector(
     private val concurrency = 3
     private val semaphore = Semaphore(concurrency)
 
-    abstract fun doSearch(query: String?, page: Int): JsonNode
+    abstract fun doSearch(
+        query: String?,
+        page: Int,
+    ): JsonNode
+
     abstract fun fetchDetail(id: String): JsonNode
 
     open fun filterSearchItems(items: List<JsonNode>): List<JsonNode> = items
@@ -64,14 +73,25 @@ abstract class AbstractCollector(
         } catch (e: Exception) {
             progress.status = CollectionStatus.FAILED
             progress.errorMessage = e.message?.take(1000)
-            log.error("[{}] Failed at page {}. Processed {}/{}", taskType, progress.lastCursor, progress.processedCount, progress.totalCount, e)
+            log.error(
+                "[{}] Failed at page {}. Processed {}/{}",
+                taskType,
+                progress.lastCursor,
+                progress.processedCount,
+                progress.totalCount,
+                e,
+            )
         } finally {
             progress.updatedAt = LocalDateTime.now()
             progressRepository.save(progress)
         }
     }
 
-    private suspend fun collectPages(query: String?, startPage: Int, progress: CollectionProgress) {
+    private suspend fun collectPages(
+        query: String?,
+        startPage: Int,
+        progress: CollectionProgress,
+    ) {
         var page = startPage
         var totalCount: Int? = null
 
@@ -92,19 +112,22 @@ abstract class AbstractCollector(
                 break
             }
 
-            val results = supervisorScope {
-                items.map { item ->
-                    async {
-                        semaphore.withPermit {
-                            withContext(Dispatchers.IO) { processItem(item) }
-                        }
-                    }
-                }.awaitAll()
-            }
+            val results =
+                supervisorScope {
+                    items
+                        .map { item ->
+                            async {
+                                semaphore.withPermit {
+                                    withContext(Dispatchers.IO) { processItem(item) }
+                                }
+                            }
+                        }.awaitAll()
+                }
 
-            progress.processedCount = withContext(Dispatchers.IO) {
-                lawDocumentRepository.countByType(dataType).toInt()
-            }
+            progress.processedCount =
+                withContext(Dispatchers.IO) {
+                    lawDocumentRepository.countByType(dataType).toInt()
+                }
 
             progress.lastCursor = page.toString()
             progress.updatedAt = LocalDateTime.now()
@@ -142,10 +165,9 @@ abstract class AbstractCollector(
         }
     }
 
-    private fun getOrCreateProgress(): CollectionProgress {
-        return progressRepository.findByTaskTypeAndDataType(taskType, dataType)
+    private fun getOrCreateProgress(): CollectionProgress =
+        progressRepository.findByTaskTypeAndDataType(taskType, dataType)
             ?: progressRepository.save(CollectionProgress(taskType = taskType, dataType = dataType))
-    }
 
     open fun resetProgress() {
         progressRepository.findByTaskTypeAndDataType(taskType, dataType)?.let {

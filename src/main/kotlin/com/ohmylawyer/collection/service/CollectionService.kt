@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 @Service
 class CollectionService(
     private val collectors: List<AbstractCollector>,
-    private val progressRepository: CollectionProgressRepository
+    private val progressRepository: CollectionProgressRepository,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -34,11 +34,13 @@ class CollectionService(
 
     @PostConstruct
     fun recoverInterruptedTasks() {
-        val interrupted = progressRepository.findAll()
-            .filter {
-                it.status == CollectionStatus.RUNNING ||
-                (it.status == CollectionStatus.FAILED && it.errorMessage == null)
-            }
+        val interrupted =
+            progressRepository
+                .findAll()
+                .filter {
+                    it.status == CollectionStatus.RUNNING ||
+                        (it.status == CollectionStatus.FAILED && it.errorMessage == null)
+                }
         if (interrupted.isNotEmpty()) {
             log.info("Recovering {} interrupted tasks to QUEUED", interrupted.size)
             interrupted.forEach {
@@ -58,7 +60,8 @@ class CollectionService(
         val terminated = collectionExecutor.awaitTermination(10, TimeUnit.SECONDS)
         log.info("Executor terminated: {}", terminated)
 
-        progressRepository.findAll()
+        progressRepository
+            .findAll()
             .filter { it.status == CollectionStatus.RUNNING }
             .forEach {
                 it.status = CollectionStatus.QUEUED
@@ -84,22 +87,22 @@ class CollectionService(
                 CollectionProgress(
                     taskType = collector.taskType,
                     dataType = dataType,
-                    status = CollectionStatus.QUEUED
-                )
+                    status = CollectionStatus.QUEUED,
+                ),
             )
         }
         log.info("Enqueued task: {}", dataType)
         return CollectionCommandResponse(CollectionStatus.QUEUED, dataType)
     }
 
-    fun enqueueAll(): List<CollectionCommandResponse> {
-        return collectors.map { enqueue(it.dataType) }
-    }
+    fun enqueueAll(): List<CollectionCommandResponse> = collectors.map { enqueue(it.dataType) }
 
     @Scheduled(fixedDelay = 60_000) // 1분마다 FAILED 태스크 복구
     fun recoverFailedTasks() {
-        val failed = progressRepository.findAll()
-            .filter { it.status == CollectionStatus.FAILED && it.processedCount < it.totalCount }
+        val failed =
+            progressRepository
+                .findAll()
+                .filter { it.status == CollectionStatus.FAILED && it.processedCount < it.totalCount }
         for (task in failed) {
             log.info("Auto-recovering FAILED task: {} (processed {}/{})", task.dataType, task.processedCount, task.totalCount)
             task.status = CollectionStatus.QUEUED
@@ -113,10 +116,12 @@ class CollectionService(
         val available = maxConcurrentCollections - runningCollections.size
         if (available <= 0) return
 
-        val queued = progressRepository.findAll()
-            .filter { it.status == CollectionStatus.QUEUED }
-            .sortedBy { it.updatedAt }
-            .take(available)
+        val queued =
+            progressRepository
+                .findAll()
+                .filter { it.status == CollectionStatus.QUEUED }
+                .sortedBy { it.updatedAt }
+                .take(available)
 
         for (next in queued) {
             val collector = collectorMap.values.find { it.taskType == next.taskType }
@@ -141,8 +146,8 @@ class CollectionService(
         }
     }
 
-    fun getStatus(): List<CollectionStatusResponse> {
-        return progressRepository.findAll().map { p ->
+    fun getStatus(): List<CollectionStatusResponse> =
+        progressRepository.findAll().map { p ->
             CollectionStatusResponse(
                 dataType = p.dataType,
                 status = p.status,
@@ -151,22 +156,18 @@ class CollectionService(
                 lastCursor = p.lastCursor,
                 errorMessage = p.errorMessage,
                 startedAt = p.startedAt,
-                completedAt = p.completedAt
+                completedAt = p.completedAt,
             )
         }
-    }
 
     fun reset(dataType: DocumentType): CollectionCommandResponse {
         resolveCollector(dataType).resetProgress()
         return CollectionCommandResponse(CollectionStatus.PENDING, dataType)
     }
 
-    fun resetAll(): List<CollectionCommandResponse> {
-        return collectors.map { reset(it.dataType) }
-    }
+    fun resetAll(): List<CollectionCommandResponse> = collectors.map { reset(it.dataType) }
 
-    private fun resolveCollector(dataType: DocumentType): AbstractCollector {
-        return collectorMap[dataType]
+    private fun resolveCollector(dataType: DocumentType): AbstractCollector =
+        collectorMap[dataType]
             ?: throw IllegalArgumentException("Unknown data type: $dataType. Available: ${collectorMap.keys}")
-    }
 }

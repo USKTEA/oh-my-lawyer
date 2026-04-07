@@ -7,12 +7,12 @@ import org.springframework.stereotype.Component
 
 @Component
 class CitationVerifier(
-    private val jdbcTemplate: JdbcTemplate
+    private val jdbcTemplate: JdbcTemplate,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun verify(citations: List<RagService.LlmCitation>): List<Citation> {
-        return citations.map { citation ->
+    fun verify(citations: List<RagService.LlmCitation>): List<Citation> =
+        citations.map { citation ->
             val exists = existsInDb(citation.source)
             if (!exists) {
                 log.warn("Citation not verified: {}", citation.source)
@@ -20,10 +20,9 @@ class CitationVerifier(
             Citation(
                 source = citation.source,
                 content = citation.content,
-                existsInDb = exists
+                existsInDb = exists,
             )
         }
-    }
 
     private fun existsInDb(source: String): Boolean {
         // extract law name or case number from source
@@ -31,19 +30,20 @@ class CitationVerifier(
         if (searchTerms.first.isBlank()) return false
 
         // check law_documents title or law_chunks content (for LEGAL_OPINION)
-        val count = jdbcTemplate.queryForObject(
-            """
+        val count =
+            jdbcTemplate.queryForObject(
+                """
             SELECT COUNT(*) FROM (
                 SELECT 1 FROM law_documents WHERE title ILIKE ? OR title ILIKE ?
                 UNION ALL
                 SELECT 1 FROM law_chunks WHERE content ILIKE ? LIMIT 1
             ) matches
             """,
-            Long::class.java,
-            "%${searchTerms.first}%",
-            "%${searchTerms.second}%",
-            "%${searchTerms.first}%"
-        ) ?: 0
+                Long::class.java,
+                "%${searchTerms.first}%",
+                "%${searchTerms.second}%",
+                "%${searchTerms.first}%",
+            ) ?: 0
 
         return count > 0
     }

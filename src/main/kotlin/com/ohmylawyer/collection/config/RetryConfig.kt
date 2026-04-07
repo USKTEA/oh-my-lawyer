@@ -13,23 +13,26 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 @Configuration
 @EnableRetry
-class RetryConfig(private val props: LawApiProperties) {
-
+class RetryConfig(
+    private val props: LawApiProperties,
+) {
     @Bean
-    fun lawApiRetryInterceptor(): RetryOperationsInterceptor {
-        return RetryInterceptorBuilder.stateless()
+    fun lawApiRetryInterceptor(): RetryOperationsInterceptor =
+        RetryInterceptorBuilder
+            .stateless()
             .retryPolicy(LawApiRetryPolicy(props.maxRetries))
-            .backOffPolicy(ExponentialBackOffPolicy().apply {
-                initialInterval = props.retryDelayMs
-                multiplier = 2.0
-                maxInterval = 10_000L
-            })
-            .build()
-    }
+            .backOffPolicy(
+                ExponentialBackOffPolicy().apply {
+                    initialInterval = props.retryDelayMs
+                    multiplier = 2.0
+                    maxInterval = 10_000L
+                },
+            ).build()
 }
 
-class LawApiRetryPolicy(private val maxRetries: Int) : SimpleRetryPolicy() {
-
+class LawApiRetryPolicy(
+    private val maxRetries: Int,
+) : SimpleRetryPolicy() {
     override fun canRetry(context: RetryContext): Boolean {
         if (context.retryCount >= maxRetries) return false
         val t = context.lastThrowable ?: return true

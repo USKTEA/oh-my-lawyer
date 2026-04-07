@@ -4,6 +4,7 @@ plugins {
     kotlin("plugin.jpa") version "2.3.20"
     id("org.springframework.boot") version "4.0.5"
     id("io.spring.dependency-management") version "1.1.7"
+    id("org.jlleitschuh.gradle.ktlint") version "12.3.0"
 }
 
 group = "com.ohmylawyer"
@@ -59,10 +60,15 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
+ktlint {
+    version.set("1.5.0")
+}
+
 fun loadEnv(): Map<String, String> {
     val envFile = rootProject.file(".env")
     if (!envFile.exists()) return emptyMap()
-    return envFile.readLines()
+    return envFile
+        .readLines()
         .filter { it.isNotBlank() && !it.startsWith("#") && it.contains("=") }
         .associate { line ->
             val (key, value) = line.split("=", limit = 2)

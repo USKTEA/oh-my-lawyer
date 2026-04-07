@@ -17,7 +17,7 @@ class SearchService(
     private val embeddingClient: GeminiEmbeddingClient,
     private val searchRepository: SearchRepository,
     private val queryRewriteService: QueryRewriteService,
-    @param:Value("\${search.top-k:10}") private val defaultTopK: Int
+    @param:Value("\${search.top-k:10}") private val defaultTopK: Int,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -27,39 +27,45 @@ class SearchService(
         val topK = request.topK ?: defaultTopK
         val rewrittenQueries = queryRewriteService.rewrite(request.query)
 
-        val allResults = runBlocking {
-            rewrittenQueries.map { query ->
-                async {
-                    val queryEmbedding = embeddingClient.embed(query, TaskType.RETRIEVAL_QUERY)
-                    searchRepository.hybridSearch(
-                        queryEmbedding = queryEmbedding,
-                        queryText = query,
-                        topK = topK,
-                        documentTypes = request.documentTypes
-                    )
-                }
-            }.flatMap { it.await() }
-        }
+        val allResults =
+            runBlocking {
+                rewrittenQueries
+                    .map { query ->
+                        async {
+                            val queryEmbedding = embeddingClient.embed(query, TaskType.RETRIEVAL_QUERY)
+                            searchRepository.hybridSearch(
+                                queryEmbedding = queryEmbedding,
+                                queryText = query,
+                                topK = topK,
+                                documentTypes = request.documentTypes,
+                            )
+                        }
+                    }.flatMap { it.await() }
+            }
 
         val mergedResults = mergeResults(allResults, topK)
 
         log.info(
             "Found {} results for query: {} (rewritten: {})",
-            mergedResults.size, request.query, rewrittenQueries
+            mergedResults.size,
+            request.query,
+            rewrittenQueries,
         )
 
         return SearchResponse(
             query = request.query,
             results = mergedResults,
-            totalCount = mergedResults.size
+            totalCount = mergedResults.size,
         )
     }
 
-    private fun mergeResults(results: List<SearchResult>, topK: Int): List<SearchResult> {
-        return results
+    private fun mergeResults(
+        results: List<SearchResult>,
+        topK: Int,
+    ): List<SearchResult> =
+        results
             .groupBy { it.chunkId }
             .map { (_, duplicates) -> duplicates.maxBy { it.score } }
             .sortedByDescending { it.score }
             .take(topK)
-    }
 }

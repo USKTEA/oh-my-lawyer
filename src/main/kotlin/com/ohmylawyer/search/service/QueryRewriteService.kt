@@ -7,12 +7,12 @@ import org.springframework.stereotype.Service
 
 @Service
 class QueryRewriteService(
-    private val chatClient: GeminiChatClient
+    private val chatClient: GeminiChatClient,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun rewrite(userQuery: String): List<String> {
-        return try {
+    fun rewrite(userQuery: String): List<String> =
+        try {
             val response = chatClient.generate(SYSTEM_INSTRUCTION, userQuery)
             val queries = parseQueries(response)
             if (queries.isEmpty()) {
@@ -26,7 +26,6 @@ class QueryRewriteService(
             log.error("Query rewrite failed for: {}, using original", userQuery, e)
             listOf(userQuery)
         }
-    }
 
     companion object {
         private val objectMapper = ObjectMapper()
@@ -34,7 +33,12 @@ class QueryRewriteService(
         private val CODE_BLOCK_REGEX = Regex("""```(?:json)?\s*\n?(.*?)\n?\s*```""", RegexOption.DOT_MATCHES_ALL)
 
         internal fun parseQueries(json: String): List<String> {
-            val cleaned = CODE_BLOCK_REGEX.find(json)?.groupValues?.get(1)?.trim() ?: json.trim()
+            val cleaned =
+                CODE_BLOCK_REGEX
+                    .find(json)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.trim() ?: json.trim()
 
             return try {
                 val tree = objectMapper.readTree(cleaned)
@@ -47,11 +51,10 @@ class QueryRewriteService(
             }
         }
 
-        internal fun buildPrompt(userQuery: String): String {
-            return """$SYSTEM_INSTRUCTION
+        internal fun buildPrompt(userQuery: String): String =
+            """$SYSTEM_INSTRUCTION
 
 사용자 질문: $userQuery"""
-        }
 
         private const val SYSTEM_INSTRUCTION = """너는 대한민국 법률 및 아파트 서비스 도메인에 특화된 전문 법률 검색 쿼리 변환기(Query Rewriter)이다.
 사용자의 일상어 및 실무 용어 기반 질의를 분석하여, 데이터베이스(키워드 및 벡터 검색 결합 엔진) 검색에 최적화된 법률 검색어로 변환하라.

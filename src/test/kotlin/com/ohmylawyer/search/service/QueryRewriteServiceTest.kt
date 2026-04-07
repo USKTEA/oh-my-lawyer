@@ -5,7 +5,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class QueryRewriteServiceTest {
-
     @Test
     fun `parseQueries - valid JSON array returns list of queries`() {
         val json = """["수사기관 사실조회 개인정보 제3자 제공", "개인정보보호법 수사목적 예외"]"""
@@ -19,11 +18,12 @@ class QueryRewriteServiceTest {
 
     @Test
     fun `parseQueries - JSON with markdown code block fences`() {
-        val json = """
+        val json =
+            """
             ```json
             ["공동주택 관리비 인상 절차", "공동주택관리법 관리비 변경 의결"]
             ```
-        """.trimIndent()
+            """.trimIndent()
 
         val result = QueryRewriteService.parseQueries(json)
 

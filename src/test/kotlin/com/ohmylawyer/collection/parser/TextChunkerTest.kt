@@ -5,7 +5,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class TextChunkerTest {
-
     @Test
     fun `short text returns single chunk`() {
         val text = "짧은 텍스트입니다."
@@ -46,7 +45,7 @@ class TextChunkerTest {
             val nextStart = chunks[i + 1].take(200)
             assertTrue(
                 nextStart.contains(currentEnd.take(15)) || chunks[i].last() == '.',
-                "No overlap found between chunk $i and ${i + 1}"
+                "No overlap found between chunk $i and ${i + 1}",
             )
         }
     }
@@ -68,13 +67,14 @@ class TextChunkerTest {
     @Test
     fun `should not create tiny chunks like single characters or periods`() {
         // Bug: "다." 나 "." 같은 초소형 chunk가 생성됨
-        val text = buildString {
-            repeat(10) {
-                append("이것은 법률 해석에 관한 긴 문장으로 여러 논점을 다루고 있다.")
-                append("관련 판례에 따르면 이 사안은 복잡한 법적 판단이 필요함.")
-                append(" ")
+        val text =
+            buildString {
+                repeat(10) {
+                    append("이것은 법률 해석에 관한 긴 문장으로 여러 논점을 다루고 있다.")
+                    append("관련 판례에 따르면 이 사안은 복잡한 법적 판단이 필요함.")
+                    append(" ")
+                }
             }
-        }
 
         val chunks = TextChunker.chunkWithOverlap(text, maxChunkSize = 200, overlapSize = 50)
 
@@ -86,7 +86,7 @@ class TextChunkerTest {
     @Test
     fun `force-split large text without sentence boundaries produces reasonable chunk count`() {
         // 실제 헌재결정 전문 시뮬레이션: 25만 글자, 문장 종결 패턴 없음
-        val text = "헌법재판소결정문내용" .repeat(25000) // 250,000자
+        val text = "헌법재판소결정문내용".repeat(25000) // 250,000자
         val chunks = TextChunker.chunkWithOverlap(text, maxChunkSize = 2500, overlapSize = 500)
 
         // 250,000 / (2500-500) = 125개가 이론적 최대치
@@ -101,7 +101,7 @@ class TextChunkerTest {
 
     @Test
     fun `all original text is covered by chunks`() {
-        val text = "이것은 테스트 문장이다." .repeat(100)
+        val text = "이것은 테스트 문장이다.".repeat(100)
         val chunks = TextChunker.chunkWithOverlap(text, maxChunkSize = 300, overlapSize = 50)
 
         // 원문의 첫/마지막 부분이 chunk에 포함되어야 함
@@ -128,19 +128,22 @@ class TextChunkerTest {
             val c1Sentences = sentences.filter { c1.contains(it) }
             val c2Sentences = sentences.filter { c2.contains(it) }
             val shared = c1Sentences.intersect(c2Sentences.toSet())
-            assertTrue(shared.isNotEmpty(),
-                "No overlap between chunk $i and ${i+1}.\n  c1 tail: '${c1.takeLast(50)}'\n  c2 head: '${c2.take(50)}'")
+            assertTrue(
+                shared.isNotEmpty(),
+                "No overlap between chunk $i and ${i + 1}.\n  c1 tail: '${c1.takeLast(50)}'\n  c2 head: '${c2.take(50)}'",
+            )
         }
     }
 
     @Test
     fun `legal text with Korean sentence endings splits correctly`() {
-        val text = """
+        val text =
+            """
             청구인은 다음과 같은 이유로 이 사건 헌법소원의 심판을 청구하였다.
             헌법소원심판은 공권력의 행사 또는 불행사로 인하여 헌법상 보장된 기본권을 침해받은 자에 대한 권리구제를 위한 것이다.
             따라서 이 사건 헌법소원심판의 청구는 부적법한 청구라 할 것이므로 이를 각하하기로 한다.
             이 결정은 관여재판관 전원의 의견일치에 따른 것이다.
-        """.trimIndent()
+            """.trimIndent()
 
         val chunks = TextChunker.chunkWithOverlap(text, maxChunkSize = 100, overlapSize = 30)
 

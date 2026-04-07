@@ -17,23 +17,23 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class DocumentPersistenceService(
     private val lawDocumentRepository: LawDocumentRepository,
-    private val lawChunkRepository: LawChunkRepository
+    private val lawChunkRepository: LawChunkRepository,
 ) {
-
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun saveDocument(parsed: ParsedDocument): LawDocument {
-        val document = lawDocumentRepository.save(
-            LawDocument(
-                type = parsed.type,
-                title = parsed.title,
-                fullText = parsed.fullText,
-                sourceUrl = parsed.sourceUrl,
-                sourceId = parsed.sourceId,
-                metadata = parsed.metadata,
-                enactedDate = parsed.enactedDate,
-                lastAmended = parsed.lastAmended
+        val document =
+            lawDocumentRepository.save(
+                LawDocument(
+                    type = parsed.type,
+                    title = parsed.title,
+                    fullText = parsed.fullText,
+                    sourceUrl = parsed.sourceUrl,
+                    sourceId = parsed.sourceId,
+                    metadata = parsed.metadata,
+                    enactedDate = parsed.enactedDate,
+                    lastAmended = parsed.lastAmended,
+                ),
             )
-        )
 
         for (chunk in parsed.chunks) {
             lawChunkRepository.save(
@@ -42,8 +42,8 @@ class DocumentPersistenceService(
                     content = chunk.content,
                     chunkType = chunk.chunkType,
                     metadata = chunk.metadata,
-                    chunkIndex = chunk.chunkIndex
-                )
+                    chunkIndex = chunk.chunkIndex,
+                ),
             )
         }
 

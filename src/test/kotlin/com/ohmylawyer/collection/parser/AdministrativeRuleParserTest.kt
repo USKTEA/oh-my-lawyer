@@ -8,7 +8,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class AdministrativeRuleParserTest {
-
     private val parser = AdministrativeRuleParser()
     private val mapper = ObjectMapper()
 
@@ -20,9 +19,12 @@ class AdministrativeRuleParserTest {
 
     @Test
     fun `parseSearchItems extracts admrul items`() {
-        val json = mapper.readTree("""
+        val json =
+            mapper.readTree(
+                """
             {"AdmRulSearch": {"totalCnt": 1, "admrul": {"행정규칙일련번호": "2100000264562", "행정규칙명": "테스트 규정"}}}
-        """)
+        """,
+            )
         val items = parser.parseSearchItems(json)
         assertEquals(1, items.size)
         assertEquals("2100000264562", parser.parseItemId(items[0]))
@@ -30,12 +32,17 @@ class AdministrativeRuleParserTest {
 
     @Test
     fun `parseDetail creates document with article chunks`() {
-        val searchItem = mapper.readTree("""
+        val searchItem =
+            mapper.readTree(
+                """
             {"행정규칙일련번호": "2100000264562", "행정규칙명": "개인정보 처리 지침",
              "행정규칙종류": "고시", "소관부처명": "개인정보보호위원회",
              "시행일자": "20250924", "행정규칙ID": "93857", "제개정구분명": "일부개정"}
-        """)
-        val detail = mapper.readTree("""
+        """,
+            )
+        val detail =
+            mapper.readTree(
+                """
             {"AdmRulService": {
                 "행정규칙기본정보": {"행정규칙명": "개인정보 처리 지침"},
                 "조문내용": [
@@ -43,7 +50,8 @@ class AdministrativeRuleParserTest {
                     {"조문번호": "2", "조문내용": "제2조 정의 내용"}
                 ]
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 
@@ -62,12 +70,15 @@ class AdministrativeRuleParserTest {
     @Test
     fun `parseDetail handles single article as object`() {
         val searchItem = mapper.readTree("""{"행정규칙일련번호": "123", "행정규칙명": "단일 조문 규정", "시행일자": "20250101"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"AdmRulService": {
                 "행정규칙기본정보": {},
                 "조문내용": {"조문번호": "1", "조문내용": "유일한 조문"}
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 
@@ -78,12 +89,15 @@ class AdministrativeRuleParserTest {
     @Test
     fun `parseDetail strips HTML br tags from content`() {
         val searchItem = mapper.readTree("""{"행정규칙일련번호": "456", "행정규칙명": "HTML 테스트"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"AdmRulService": {
                 "행정규칙기본정보": {},
                 "조문내용": [{"조문번호": "1", "조문내용": "첫줄<br/>둘째줄<br>셋째줄"}]
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 
@@ -100,12 +114,15 @@ class AdministrativeRuleParserTest {
     @Test
     fun `parseDetail handles empty article list`() {
         val searchItem = mapper.readTree("""{"행정규칙일련번호": "789", "행정규칙명": "빈 조문 규정", "시행일자": "20250101"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"AdmRulService": {
                 "행정규칙기본정보": {},
                 "조문내용": []
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 
@@ -115,11 +132,14 @@ class AdministrativeRuleParserTest {
     @Test
     fun `parseDetail handles missing 조문내용 key`() {
         val searchItem = mapper.readTree("""{"행정규칙일련번호": "790", "행정규칙명": "조문없는 규정", "시행일자": "20250101"}""")
-        val detail = mapper.readTree("""
+        val detail =
+            mapper.readTree(
+                """
             {"AdmRulService": {
                 "행정규칙기본정보": {}
             }}
-        """)
+        """,
+            )
 
         val result = parser.parseDetail(searchItem, detail)
 

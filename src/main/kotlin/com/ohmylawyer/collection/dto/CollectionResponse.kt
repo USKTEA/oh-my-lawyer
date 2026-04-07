@@ -6,7 +6,7 @@ import java.time.LocalDateTime
 
 data class CollectionCommandResponse(
     val status: CollectionStatus,
-    val dataType: DocumentType
+    val dataType: DocumentType,
 )
 
 data class CollectionStatusResponse(
@@ -17,5 +17,5 @@ data class CollectionStatusResponse(
     val lastCursor: String?,
     val errorMessage: String?,
     val startedAt: LocalDateTime?,
-    val completedAt: LocalDateTime?
+    val completedAt: LocalDateTime?,
 )
