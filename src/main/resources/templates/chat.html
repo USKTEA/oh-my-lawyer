@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oh My Lawyer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f0f2f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: rgba(0,0,0,0.88);
+            font-size: 14px;
+            line-height: 1.5714;
+        }
+
+        /* Header */
+        .header {
+            background: #fff;
+            border-bottom: 1px solid #f0f0f0;
+            padding: 0 24px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 1px 2px 0 rgba(0,0,0,0.03), 0 1px 6px -1px rgba(0,0,0,0.02), 0 2px 4px 0 rgba(0,0,0,0.02);
+        }
+        .header-title { font-size: 16px; font-weight: 600; }
+        .header-tag {
+            margin-left: 8px;
+            padding: 0 7px;
+            font-size: 12px;
+            line-height: 20px;
+            border-radius: 4px;
+            background: #e6f4ff;
+            color: #1677ff;
+            border: 1px solid #91caff;
+        }
+
+        /* Chat area */
+        .chat-container { flex: 1; overflow-y: auto; padding: 24px; }
+        .chat-inner { max-width: 800px; margin: 0 auto; }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 80px 0;
+            color: rgba(0,0,0,0.25);
+        }
+        .empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; }
+        .empty-state p { font-size: 14px; }
+
+        /* Messages */
+        .message { margin-bottom: 20px; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        .message.user { display: flex; justify-content: flex-end; }
+        .message.user .bubble {
+            background: #1677ff;
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: 8px 8px 2px 8px;
+            max-width: 70%;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .message.assistant .bubble {
+            background: #fff;
+            border: 1px solid #f0f0f0;
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 100%;
+            box-shadow: 0 1px 2px 0 rgba(0,0,0,0.03), 0 1px 6px -1px rgba(0,0,0,0.02), 0 2px 4px 0 rgba(0,0,0,0.02);
+        }
+
+        /* Risk badge */
+        .risk-badge {
+            display: inline-block;
+            padding: 0 8px;
+            font-size: 12px;
+            line-height: 22px;
+            border-radius: 4px;
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+        .risk-HIGH { background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; }
+        .risk-MEDIUM { background: #fff7e6; color: #d46b08; border: 1px solid #ffd591; }
+        .risk-LOW { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
+
+        /* Analysis */
+        .analysis { line-height: 1.8; margin-bottom: 16px; color: rgba(0,0,0,0.88); white-space: pre-wrap; }
+
+        /* Citations */
+        .citations { border-top: 1px solid #f0f0f0; padding-top: 16px; margin-top: 4px; }
+        .citations-title { font-size: 13px; color: rgba(0,0,0,0.45); margin-bottom: 10px; font-weight: 500; }
+        .citation {
+            padding: 10px 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            background: #fafafa;
+            border: 1px solid #f0f0f0;
+            font-size: 13px;
+        }
+        .citation-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+        .citation .source { font-weight: 600; color: rgba(0,0,0,0.88); }
+        .citation .db-tag {
+            font-size: 11px;
+            padding: 0 6px;
+            line-height: 18px;
+            border-radius: 4px;
+            background: #f6ffed;
+            color: #389e0d;
+            border: 1px solid #b7eb8f;
+        }
+        .citation .content { color: rgba(0,0,0,0.65); line-height: 1.6; }
+
+        /* Disclaimer */
+        .disclaimer { font-size: 12px; color: rgba(0,0,0,0.25); margin-top: 16px; padding-top: 12px; border-top: 1px solid #f0f0f0; }
+
+        /* Progress */
+        .progress-wrap { display: flex; align-items: center; gap: 10px; padding: 8px 0; color: rgba(0,0,0,0.45); font-size: 14px; }
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid #f0f0f0;
+            border-top-color: #1677ff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Iterations tag */
+        .iterations-tag {
+            font-size: 12px;
+            color: rgba(0,0,0,0.45);
+            margin-bottom: 12px;
+            margin-left: 8px;
+        }
+
+        /* Input area */
+        .input-area {
+            background: #fff;
+            border-top: 1px solid #f0f0f0;
+            padding: 16px 24px;
+        }
+        .input-wrap {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            gap: 8px;
+        }
+        .input-wrap textarea {
+            flex: 1;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 14px;
+            resize: none;
+            height: 40px;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.2s;
+            color: rgba(0,0,0,0.88);
+        }
+        .input-wrap textarea:hover { border-color: #4096ff; }
+        .input-wrap textarea:focus { border-color: #1677ff; box-shadow: 0 0 0 2px rgba(5,145,255,0.1); }
+        .input-wrap textarea::placeholder { color: rgba(0,0,0,0.25); }
+        .input-wrap button {
+            background: #1677ff;
+            color: #fff;
+            border: 1px solid #1677ff;
+            border-radius: 6px;
+            padding: 0 20px;
+            height: 40px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .input-wrap button:hover { background: #4096ff; border-color: #4096ff; }
+        .input-wrap button:disabled { background: rgba(0,0,0,0.04); color: rgba(0,0,0,0.25); border-color: #d9d9d9; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <span class="header-title">Oh My Lawyer</span>
+        <span class="header-tag">AI 법률 리스크 검토</span>
+    </div>
+    <div class="chat-container" id="chatContainer">
+        <div class="chat-inner" id="chat">
+            <div class="empty-state" id="emptyState">
+                <svg viewBox="0 0 64 64" fill="none"><rect x="8" y="12" width="48" height="40" rx="4" stroke="rgba(0,0,0,0.15)" stroke-width="2"/><path d="M20 28h24M20 36h16" stroke="rgba(0,0,0,0.15)" stroke-width="2" stroke-linecap="round"/></svg>
+                <p>법률 관련 질문을 입력하세요</p>
+            </div>
+        </div>
+    </div>
+    <div class="input-area">
+        <div class="input-wrap">
+            <textarea id="input" placeholder="예: 경찰이 영장 없이 입주민 정보 달라는데 줘도 되나?" rows="1"></textarea>
+            <button id="sendBtn" onclick="sendMessage()">전송</button>
+        </div>
+    </div>
+
+    <script>
+        const chat = document.getElementById('chat');
+        const chatContainer = document.getElementById('chatContainer');
+        const input = document.getElementById('input');
+        const sendBtn = document.getElementById('sendBtn');
+        const emptyState = document.getElementById('emptyState');
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        function sendMessage() {
+            const question = input.value.trim();
+            if (!question || sendBtn.disabled) return;
+
+            if (emptyState) emptyState.remove();
+
+            addUserMessage(question);
+            input.value = '';
+            sendBtn.disabled = true;
+
+            const progressId = showProgress('관련 법령 및 판례를 검색하고 있습니다...');
+
+            fetch('/api/ask/stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question })
+            }).then(response => {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                function read() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) { sendBtn.disabled = false; return; }
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || '';
+
+                        let eventName = '';
+                        for (const line of lines) {
+                            if (line.startsWith('event:')) {
+                                eventName = line.substring(6).trim();
+                            } else if (line.startsWith('data:')) {
+                                const data = line.substring(5).trim();
+                                if (!data) continue;
+                                try {
+                                    const parsed = JSON.parse(data);
+                                    if (eventName === 'progress') {
+                                        updateProgress(progressId, parsed.message);
+                                    } else if (eventName === 'complete') {
+                                        removeEl(progressId);
+                                        addResponse(parsed);
+                                        sendBtn.disabled = false;
+                                    } else if (eventName === 'error') {
+                                        removeEl(progressId);
+                                        addErrorMessage(parsed.message);
+                                        sendBtn.disabled = false;
+                                    }
+                                } catch (e) {}
+                            }
+                        }
+                        read();
+                    });
+                }
+                read();
+            }).catch(() => {
+                removeEl(progressId);
+                addErrorMessage('서버 연결에 실패했습니다.');
+                sendBtn.disabled = false;
+            });
+        }
+
+        function addUserMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'message user';
+            div.innerHTML = '<div class="bubble">' + esc(text) + '</div>';
+            chat.appendChild(div);
+            scrollToBottom();
+        }
+
+        function showProgress(msg) {
+            const id = 'p-' + Date.now();
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.id = id;
+            div.innerHTML = '<div class="progress-wrap"><div class="spinner"></div><span>' + esc(msg) + '</span></div>';
+            chat.appendChild(div);
+            scrollToBottom();
+            return id;
+        }
+
+        function updateProgress(id, msg) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.innerHTML = '<div class="progress-wrap"><div class="spinner"></div><span>' + esc(msg) + '</span></div>';
+                scrollToBottom();
+            }
+        }
+
+        function removeEl(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        function addResponse(data) {
+            const riskLabels = { HIGH: '위험 높음', MEDIUM: '주의 필요', LOW: '리스크 낮음' };
+            let html = '<div class="bubble">';
+            html += '<span class="risk-badge risk-' + data.riskLevel + '">' + (riskLabels[data.riskLevel] || data.riskLevel) + '</span>';
+            html += '<span class="iterations-tag">' + data.iterations + '회 분석</span>';
+            html += '<div class="analysis">' + esc(data.analysis) + '</div>';
+
+            if (data.citations && data.citations.length > 0) {
+                html += '<div class="citations"><div class="citations-title">인용 근거</div>';
+                for (const c of data.citations) {
+                    html += '<div class="citation"><div class="citation-header"><span class="source">' + esc(c.source) + '</span>';
+                    if (c.existsInDb) html += '<span class="db-tag">DB 확인</span>';
+                    html += '</div><div class="content">' + esc(c.content) + '</div></div>';
+                }
+                html += '</div>';
+            }
+
+            html += '<div class="disclaimer">' + esc(data.disclaimer) + '</div>';
+            html += '</div>';
+
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.innerHTML = html;
+            chat.appendChild(div);
+            scrollToBottom();
+        }
+
+        function addErrorMessage(msg) {
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.innerHTML = '<div class="bubble" style="border-color:#ffa39e;background:#fff1f0;color:#cf1322;">' + esc(msg) + '</div>';
+            chat.appendChild(div);
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function esc(text) {
+            const d = document.createElement('div');
+            d.textContent = text;
+            return d.innerHTML;
+        }
+    </script>
+</body>
+</html>

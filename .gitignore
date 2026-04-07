@@ -1,5 +1,6 @@
 # Environment
 .env
+application-local.yml
 
 # Gradle
 .gradle/

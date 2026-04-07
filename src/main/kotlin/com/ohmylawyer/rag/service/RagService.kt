@@ -24,6 +24,10 @@ class RagService(
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun ask(request: RagRequest): RagResponse {
+        return askStream(request) {}
+    }
+
+    fun askStream(request: RagRequest, onProgress: (String) -> Unit): RagResponse {
         log.info("RAG request: {}", request.question)
 
         val allChunks = mutableListOf<ContextChunk>()
@@ -31,6 +35,7 @@ class RagService(
         var iterations = 0
 
         // initial search
+        onProgress("관련 법령 및 판례를 검색하고 있습니다...")
         val initialResults = searchService.search(
             SearchRequest(query = request.question, documentTypes = request.documentTypes, topK = 10)
         )
@@ -42,6 +47,7 @@ class RagService(
             val context = buildContext(allChunks)
             val userMessage = buildUserMessage(request.question, context)
 
+            onProgress("법률 분석 중... (${i}/${MAX_ITERATIONS}회차)")
             log.info("RAG iteration {}/{}, context chunks: {}", i, MAX_ITERATIONS, allChunks.size)
 
             val rawResponse = chatClient.generate(
@@ -58,6 +64,7 @@ class RagService(
             }
 
             // additional search for next iteration (parallel)
+            onProgress("근거 보강을 위해 추가 검색 중...")
             log.info("Additional queries requested: {}", lastResponse.additionalQueries)
             val newChunks = runBlocking {
                 lastResponse.additionalQueries.map { query ->
@@ -74,6 +81,7 @@ class RagService(
         val response = lastResponse ?: return errorResponse(request.question)
 
         // verify citations
+        onProgress("인용 검증 중...")
         val verifiedCitations = citationVerifier.verify(response.citations)
 
         return RagResponse(
